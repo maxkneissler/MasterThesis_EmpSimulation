@@ -330,6 +330,97 @@ grid.arrange(SafeIndu, TransElec, Health, Cons, ncol=2, nrow = 2,
 ################################################################################
 
 
+### Build up the training and validation sets
+
+Income_Statement_Train <- Income_Statement %>% subset(select=c(1,8:39))
+Income_Statement_Val <- Income_Statement %>% subset(select=c(1:7))
+
+Division_Region_Matrix_Sales <- 
+  Division_Region_Matrix_Sales[rev(rownames(Division_Region_Matrix_Sales)),]
+DivRegion_Train <- Division_Region_Matrix_Sales[1:112,]
+DivRegion_Val <- Division_Region_Matrix_Sales[113:140,]
+
+OpInc_Train <- OpIncome_per_Division %>% subset(select=c(1,8:39))
+OpInc_Val <- OpIncome_per_Division %>% subset(select=c(1:7))
+
+SalesDiv_Train <- Sales_per_Division %>% subset(select=c(1,8:39))
+SalesDiv_Val <- Sales_per_Division %>% subset(select=c(1:7))
+
+SalesReg_Train <- Sales_per_Region %>% subset(select=c(1,8:39))
+SalesReg_Val <- Sales_per_Region %>% subset(select=c(1:7))
+
+Ext_Parameters <- Ext_Parameters[rev(rownames(Ext_Parameters)),]
+Ext_Parameters_Train <- Ext_Parameters[1:32,]
+Ext_Parameters_Val <- Ext_Parameters[33:38,]
+
+
+### Linear model as a starting point to define suitable external features
+
+### 1. Training of the Regions
+
+# Linear model to project the sales in the Americans
+SalesAmerTrain <- SalesReg_Train[1,] %>% t() %>% as.data.frame()
+SalesAmerTrain <- cbind(Quarter = rownames(SalesAmerTrain), SalesAmerTrain)
+SalesAmerTrain <- SalesAmerTrain[-1,]
+SalesAmerTrain <- SalesAmerTrain[rev(rownames(SalesAmerTrain)),]
+rownames(SalesAmerTrain) <- 1:nrow(SalesAmerTrain)
+names(SalesAmerTrain)[2] <- "Net_Sales"
+
+SalesAmerTrain <- 
+  cbind(SalesAmerTrain, Ext_Parameters_Train[,c(2,5,8,11,14,17,20,23)])
+
+# PPP and Exchange Rate not considered as set to 1 as base
+ModelAmerSales <- 
+  lm(Net_Sales ~ GDP_USA_Perc_Change + Unemp_USA_Perc + IntRate_USA_Perc +
+       CPI_USA + Avg_Wage_USA + ConsBaro_USA, SalesAmerTrain)
+
+# Summary Statistics of Linear Output 
+summary(ModelAmerSales)
+
+
+# Linear model to project the sales in Asia Pacific
+SalesAsiaTrain <- SalesReg_Train[2,] %>% t() %>% as.data.frame()
+SalesAsiaTrain <- cbind(Quarter = rownames(SalesAsiaTrain), SalesAsiaTrain)
+SalesAsiaTrain <- SalesAsiaTrain[-1,]
+SalesAsiaTrain <- SalesAsiaTrain[rev(rownames(SalesAsiaTrain)),]
+rownames(SalesAsiaTrain) <- 1:nrow(SalesAsiaTrain)
+names(SalesAsiaTrain)[2] <- "Net_Sales"
+
+SalesAsiaTrain <- 
+  cbind(SalesAsiaTrain, Ext_Parameters_Train[,c(4,7,10,13,16,19,22,25)])
+
+ModelAsiaSales <- 
+  lm(Net_Sales ~ GDP_CHN_Perc_Change + Umemp_CHN_Perc + IntRate_CHN_Perc + 
+PPP_JPN + CPI_CHN + ExchRate_CHN + Avg_Wage_JPN + ConsBaro_CHN, SalesAsiaTrain)
+
+# Summary Statistics of Linear Output
+summary(ModelAsiaSales)
+
+
+# Linear model to project the sales in Europa / Middle East / Africa
+SalesEurTrain <- SalesReg_Train[3,] %>% t() %>% as.data.frame()
+SalesEurTrain <- cbind(Quarter = rownames(SalesEurTrain), SalesEurTrain)
+SalesEurTrain <- SalesEurTrain[-1,]
+SalesEurTrain <- SalesEurTrain[rev(rownames(SalesEurTrain)),]
+rownames(SalesEurTrain) <- 1:nrow(SalesEurTrain)
+names(SalesEurTrain)[2] <- "Net_Sales"
+
+SalesEurTrain <- 
+  cbind(SalesEurTrain, Ext_Parameters_Train[,c(3,6,9,12,15,18,21,24)])
+
+ModelEurSales <- 
+  lm(Net_Sales ~ GDP_GER_Perc_Change + Unemp_GER_Perc + IntRate_GER_Perc + PPP_GER + 
+       CPI_GER + ExchRate_GER + Avg_Wage_GER + ConsBaro_GER, SalesEurTrain)
+
+# Summary Statistics of Linear Output
+summary(ModelEurSales)
+
+
+### 2. Training of the Divisions
+
+
+
+
 
 # Validation year 2021
 
