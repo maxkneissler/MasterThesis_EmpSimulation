@@ -520,6 +520,142 @@ sink()
 ### 3. Training for Divisions and Regions separately
 
 
+# Filter the 4 segments in the 3 regions
+names(DivRegion_Train)[1] <- "Division"
+DivRegion_Train <- DivRegion_Train[,1:5] %>% 
+            filter(!grepl("Corporate and Unallocated", Division)) %>%
+            filter(!grepl("Total Company", Division)) %>%
+            filter(!grepl("Elimination of Dual Credit", Division))
+
+
+# External Parameters only for the time horizon
+DivRegExt_Paramter <- Ext_Parameters_Train[17:32,]
+
+
+### Separate Division Modelling for each region
+
+
+## Safety & Industrial
+
+SafeInduRegion_Train <- 
+            DivRegion_Train %>% filter(Division == "Safety & Industrial")
+SafeInduRegion_Train <- cbind(SafeInduRegion_Train, DivRegExt_Paramter[,2:25])
+
+# Americans
+SI_Amer <- lm(Americas ~ GDP_USA_Perc_Change + Unemp_USA_Perc + IntRate_USA_Perc + 
+                CPI_USA + Avg_Wage_USA, SafeInduRegion_Train)
+sink("SI_Amer.txt)")
+summary(SI_Amer)
+sink()
+
+# Asia Pacific
+SI_Asia <- lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + GDP_CHN_Perc_Change + 
+                ExchRate_CHN + CPI_CHN, SafeInduRegion_Train)
+sink("SI_Asia.txt)")
+summary(SI_Asia)
+sink()
+
+# Europe / Middle East / Africa
+SI_Eur <- lm(`Europe, Middle East, Africa` ~ ExchRate_GER, SafeInduRegion_Train)
+sink("SI_Eur.txt)")
+summary(SI_Eur)
+sink()
+
+
+## Transportation & Electronics
+
+TranElecRegion_Train <- 
+      DivRegion_Train %>% filter(Division == "Transportation and Electronics")
+TranElecRegion_Train <- cbind(TranElecRegion_Train, DivRegExt_Paramter[,2:25])
+
+# Americans
+TE_Amer <- 
+  lm(Americas ~ GDP_USA_Perc_Change + Avg_Wage_USA, TranElecRegion_Train)
+sink("TE_Amer.txt)")
+summary(TE_Amer)
+sink()
+
+
+# Asia Pacific
+TE_Asia <- 
+  lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + CPI_CHN, 
+                TranElecRegion_Train)
+sink("TE_Asia.txt)")
+summary(TE_Asia)
+sink()
+
+
+# Europe / Middle East / Africa
+TE_Eur <- 
+  lm(`Europe, Middle East, Africa` ~ ExchRate_GER, TranElecRegion_Train)
+sink("TE_Eur.txt)")
+summary(TE_Eur)
+sink()
+
+
+
+## Health Care
+
+HealthRegion_Train <- DivRegion_Train %>% filter(Division == "Health Care")
+HealthRegion_Train <- cbind(HealthRegion_Train, DivRegExt_Paramter[,2:25])
+
+# Americans
+HC_Amer <- 
+  lm(Americas ~ GDP_USA_Perc_Change + Avg_Wage_USA + Unemp_USA_Perc + CPI_USA, 
+     HealthRegion_Train)
+sink("HC_Amer.txt)")
+summary(HC_Amer)
+sink()
+
+
+# Asia Pacific
+HC_Asia <- 
+  lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + GDP_CHN_Perc_Change, 
+     HealthRegion_Train)
+sink("HC_Asia.txt)")
+summary(HC_Asia)
+sink()
+
+
+# Europe / Middle East / Africa
+HC_Eur <- 
+  lm(`Europe, Middle East, Africa` ~ ExchRate_GER + GDP_GER_Perc_Change, 
+        HealthRegion_Train)
+sink("HC_Eur.txt)")
+summary(HC_Eur)
+sink()
+
+
+
+## Consumer 
+
+ConsRegion_Train <- DivRegion_Train %>% filter(Division == "Consumer")
+ConsRegion_Train <- cbind(ConsRegion_Train, DivRegExt_Paramter[,2:25])
+
+# Americans
+C_Amer <- 
+  lm(Americas ~ GDP_USA_Perc_Change + Avg_Wage_USA, ConsRegion_Train)
+sink("C_Amer.txt)")
+summary(C_Amer)
+sink()
+
+
+# Asia Pacific
+C_Asia <- 
+  lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + GDP_CHN_Perc_Change + 
+       ExchRate_CHN, ConsRegion_Train)
+sink("C_Asia.txt)")
+summary(C_Asia)
+sink()
+
+
+# Europe / Middle East / Africa
+C_Eur <- 
+  lm(`Europe, Middle East, Africa` ~ ExchRate_GER + Unemp_GER_Perc + ConsBaro_GER, 
+     ConsRegion_Train)
+sink("C_Eur.txt)")
+summary(C_Eur)
+sink()
 
 
 
