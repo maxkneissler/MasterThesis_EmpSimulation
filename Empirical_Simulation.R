@@ -13,6 +13,7 @@ library(ggpubr)
 library(gridExtra)
 library(stringr)
 library(readxl)
+library(stargazer)
 library(tidyverse)
 
 
@@ -375,7 +376,10 @@ ModelAmerSales <-
        CPI_USA + Avg_Wage_USA + ConsBaro_USA, SalesAmerTrain)
 
 # Summary Statistics of Linear Output 
-summary(ModelAmerSales)
+sink("BaseAmer.txt")
+print(summary(ModelAmerSales))
+sink()
+
 
 
 # Linear model to project the sales in Asia Pacific
@@ -394,8 +398,9 @@ ModelAsiaSales <-
 PPP_JPN + CPI_CHN + ExchRate_CHN + Avg_Wage_JPN + ConsBaro_CHN, SalesAsiaTrain)
 
 # Summary Statistics of Linear Output
+sink("BaseAsia.txt")
 summary(ModelAsiaSales)
-
+sink()
 
 # Linear model to project the sales in Europa / Middle East / Africa
 SalesEurTrain <- SalesReg_Train[3,] %>% t() %>% as.data.frame()
@@ -413,10 +418,107 @@ ModelEurSales <-
        CPI_GER + ExchRate_GER + Avg_Wage_GER + ConsBaro_GER, SalesEurTrain)
 
 # Summary Statistics of Linear Output
-summary(ModelEurSales)
+sink("BaseEur.txt)")
+print(summary(ModelEurSales))
+sink()
 
 
 ### 2. Training of the Divisions
+
+
+# Safety & Industrial
+
+SalesSafeInduTrain <- SalesDiv_Train[1,] %>% t() %>% as.data.frame()
+SalesSafeInduTrain <- cbind(Quarter = rownames(SalesSafeInduTrain), SalesSafeInduTrain)
+SalesSafeInduTrain <- SalesSafeInduTrain[-1,]
+SalesSafeInduTrain <- SalesSafeInduTrain[rev(rownames(SalesSafeInduTrain)),]
+rownames(SalesSafeInduTrain) <- 1:nrow(SalesSafeInduTrain)
+names(SalesSafeInduTrain)[2] <- "Net_Sales"
+
+SalesSafeInduTrain <- cbind(SalesSafeInduTrain, Ext_Parameters_Train[,2:25])
+ModelSafeIndu <- lm(Net_Sales ~ . - Quarter, SalesSafeInduTrain)
+
+# Summary Statistics of Linear Output
+sink("BaseSafeIndu.txt)")
+print(summary(ModelSafeIndu))
+sink()
+
+
+# Transportation and Electronics
+
+SalesTransElecTrain <- SalesDiv_Train[2,] %>% t() %>% as.data.frame()
+SalesTransElecTrain <- cbind(Quarter = rownames(SalesTransElecTrain), SalesTransElecTrain)
+SalesTransElecTrain <- SalesTransElecTrain[-1,]
+SalesTransElecTrain <- SalesTransElecTrain[rev(rownames(SalesTransElecTrain)),]
+rownames(SalesTransElecTrain) <- 1:nrow(SalesTransElecTrain)
+names(SalesTransElecTrain)[2] <- "Net_Sales"
+
+SalesTransElecTrain <- cbind(SalesTransElecTrain, Ext_Parameters_Train[,2:25])
+ModelTransElec <- lm(Net_Sales ~ . - Quarter, SalesTransElecTrain)
+
+# Summary Statistics of Linear Output
+sink("BaseTransElec.txt)")
+print(summary(ModelTransElec))
+sink()
+
+
+# Transportation and Electronics
+
+SalesTransElecTrain <- SalesDiv_Train[2,] %>% t() %>% as.data.frame()
+SalesTransElecTrain <- cbind(Quarter = rownames(SalesTransElecTrain), SalesTransElecTrain)
+SalesTransElecTrain <- SalesTransElecTrain[-1,]
+SalesTransElecTrain <- SalesTransElecTrain[rev(rownames(SalesTransElecTrain)),]
+rownames(SalesTransElecTrain) <- 1:nrow(SalesTransElecTrain)
+names(SalesTransElecTrain)[2] <- "Net_Sales"
+
+SalesTransElecTrain <- cbind(SalesTransElecTrain, Ext_Parameters_Train[,2:25])
+ModelTransElec <- lm(Net_Sales ~ . - Quarter, SalesTransElecTrain)
+
+# Summary Statistics of Linear Output
+sink("BaseTransElec.txt)")
+print(summary(ModelTransElec))
+sink()
+
+
+# Health Care
+
+SalesHealthTrain <- SalesDiv_Train[3,] %>% t() %>% as.data.frame()
+SalesHealthTrain <- cbind(Quarter = rownames(SalesHealthTrain), SalesHealthTrain)
+SalesHealthTrain <- SalesHealthTrain[-1,]
+SalesHealthTrain <- SalesHealthTrain[rev(rownames(SalesHealthTrain)),]
+rownames(SalesHealthTrain) <- 1:nrow(SalesHealthTrain)
+names(SalesHealthTrain)[2] <- "Net_Sales"
+
+SalesHealthTrain <- cbind(SalesHealthTrain, Ext_Parameters_Train[,2:25])
+ModelHealth <- lm(Net_Sales ~ . - Quarter, SalesHealthTrain)
+
+# Summary Statistics of Linear Output
+sink("BaseHealth.txt)")
+print(summary(ModelHealth))
+sink()
+
+
+# Consumer
+
+SalesConsTrain <- SalesDiv_Train[4,] %>% t() %>% as.data.frame()
+SalesConsTrain <- cbind(Quarter = rownames(SalesConsTrain), SalesConsTrain)
+SalesConsTrain <- SalesConsTrain[-1,]
+SalesConsTrain <- SalesConsTrain[rev(rownames(SalesConsTrain)),]
+rownames(SalesConsTrain) <- 1:nrow(SalesConsTrain)
+names(SalesConsTrain)[2] <- "Net_Sales"
+
+SalesConsTrain <- cbind(SalesConsTrain, Ext_Parameters_Train[,2:25])
+ModelCons <- lm(Net_Sales ~ . - Quarter, SalesConsTrain)
+
+# Summary Statistics of Linear Output
+sink("BaseCons.txt)")
+print(summary(ModelCons))
+sink()
+
+
+
+### 3. Training for Divisions and Regions separately
+
 
 
 
