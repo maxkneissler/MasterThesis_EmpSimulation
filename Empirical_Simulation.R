@@ -658,6 +658,244 @@ summary(C_Eur)
 sink()
 
 
+### 4. Training to forecast the budget in the year 2020 by including ext parameters
+
+## Set-Up for the test strategy
+
+# Get the means in order to interpolate from 2013 to 2016
+names(Division_Region_Matrix_Sales)[1] <- "Division"
+DivRegionInterpol <- Division_Region_Matrix_Sales %>% 
+  filter(!grepl("Total Company", Division))
+DivRegionInterpol <- DivRegionInterpol %>% 
+  filter(!grepl("Elimination of Dual Credit", Division))
+DivRegionInterpol <- DivRegionInterpol %>% 
+  filter(!grepl("Corporate and Unallocated", Division))
+
+DivRegionInterpol <- DivRegionInterpol[,-6]
+
+DivRegionInterpol$Perc_Amer <- 
+          DivRegionInterpol$Americas/DivRegionInterpol$Worldwide
+DivRegionInterpol$Perc_Asia <- 
+          DivRegionInterpol$`Asia Pacific`/DivRegionInterpol$Worldwide
+DivRegionInterpol$Perc_Eur <- 
+    DivRegionInterpol$`Europe, Middle East, Africa`/DivRegionInterpol$Worldwide
+
+SIAmer_Perc <- DivRegionInterpol[,c(1,7)] %>% 
+                  filter(Division == "Safety & Industrial") %>%
+                  summarise(mean = mean(Perc_Amer))
+
+SIAsia_Perc <- DivRegionInterpol[,c(1,8)] %>% 
+  filter(Division == "Safety & Industrial") %>%
+  summarise(mean = mean(Perc_Asia))
+
+SIEur_Perc <- DivRegionInterpol[,c(1,9)] %>% 
+  filter(Division == "Safety & Industrial") %>%
+  summarise(mean = mean(Perc_Eur))
+
+TEAmer_Perc <- DivRegionInterpol[,c(1,7)] %>% 
+  filter(Division == "Transportation and Electronics") %>%
+  summarise(mean = mean(Perc_Amer))
+
+TEAsia_Perc <- DivRegionInterpol[,c(1,8)] %>% 
+  filter(Division == "Transportation and Electronics") %>%
+  summarise(mean = mean(Perc_Asia))
+
+TEEur_Perc <- DivRegionInterpol[,c(1,9)] %>% 
+  filter(Division == "Transportation and Electronics") %>%
+  summarise(mean = mean(Perc_Eur))
+
+HCAmer_Perc <- DivRegionInterpol[,c(1,7)] %>% 
+  filter(Division == "Health Care") %>%
+  summarise(mean = mean(Perc_Amer))
+
+HCAsia_Perc <- DivRegionInterpol[,c(1,8)] %>% 
+  filter(Division == "Health Care") %>%
+  summarise(mean = mean(Perc_Asia))
+
+HCEur_Perc <- DivRegionInterpol[,c(1,9)] %>% 
+  filter(Division == "Health Care") %>%
+  summarise(mean = mean(Perc_Eur))
+
+CAmer_Perc <- DivRegionInterpol[,c(1,7)] %>% 
+  filter(Division == "Consumer") %>%
+  summarise(mean = mean(Perc_Amer))
+
+CAsia_Perc <- DivRegionInterpol[,c(1,8)] %>% 
+  filter(Division == "Consumer") %>%
+  summarise(mean = mean(Perc_Asia))
+
+CEur_Perc <- DivRegionInterpol[,c(1,9)] %>% 
+  filter(Division == "Consumer") %>%
+  summarise(mean = mean(Perc_Eur))
+
+
+DivRegionInterpol <- DivRegionInterpol[,1:6]
+
+# Fill in the divisions and total sales
+Temp <- Sales_per_Division[c(1:4), c(1,24:39)]
+Temp[5:64,] <- NA
+j=0
+x=5
+y=8
+for (i in 1:15){
+    
+    Temp[x:y,1] <- Temp[1:4,1]
+    Temp[x:y,2] <- Temp[1:4,2+i]
+    j=j+4
+    
+    x=5+j
+    y=8+j
+}
+
+Temp <- Temp[,1:2]
+names(Temp)[1] <- "Division"
+names(Temp)[2] <- "Worldwide"
+Temp$Period <- NA
+Temp$Americas <- NA
+Temp$`Asia Pacific` <- NA
+Temp$`Europe, Middle East, Africa` <- NA
+
+# Compute the divisional and regional sales with the interpolated mean
+
+j=0
+for (i in 1:16){
+  
+  Temp[1+j,4] <- Temp[1+j,2]*SIAmer_Perc[1,1]
+  Temp[2+j,4] <- Temp[2+j,2]*TEAmer_Perc[1,1]
+  Temp[3+j,4] <- Temp[3+j,2]*HCAmer_Perc[1,1]
+  Temp[4+j,4] <- Temp[4+j,2]*CAmer_Perc[1,1]
+  
+  Temp[1+j,5] <- Temp[1+j,2]*SIAsia_Perc[1,1]
+  Temp[2+j,5] <- Temp[2+j,2]*TEAsia_Perc[1,1]
+  Temp[3+j,5] <- Temp[3+j,2]*HCAsia_Perc[1,1]
+  Temp[4+j,5] <- Temp[4+j,2]*CAsia_Perc[1,1]
+  
+  Temp[1+j,6] <- Temp[1+j,2]*SIEur_Perc[1,1]
+  Temp[2+j,6] <- Temp[2+j,2]*TEEur_Perc[1,1]
+  Temp[3+j,6] <- Temp[3+j,2]*HCEur_Perc[1,1]
+  Temp[4+j,6] <- Temp[4+j,2]*CEur_Perc[1,1]
+  j=j+4
+}
+
+Temp[1:4,3] <- paste("Q4", 2016, sep = "_")
+Temp[5:8,3] <- paste("Q3", 2016, sep = "_")
+Temp[9:12,3] <- paste("Q2", 2016, sep = "_")
+Temp[13:16,3] <- paste("Q1", 2016, sep = "_")
+Temp[17:20,3] <- paste("Q4", 2015, sep = "_")
+Temp[21:24,3] <- paste("Q3", 2015, sep = "_")
+Temp[25:28,3] <- paste("Q2", 2015, sep = "_")
+Temp[29:32,3] <- paste("Q1", 2015, sep = "_")
+Temp[33:36,3] <- paste("Q4", 2014, sep = "_")
+Temp[37:40,3] <- paste("Q3", 2014, sep = "_")
+Temp[41:44,3] <- paste("Q2", 2014, sep = "_")
+Temp[45:48,3] <- paste("Q1", 2014, sep = "_")
+Temp[49:52,3] <- paste("Q4", 2013, sep = "_")
+Temp[53:56,3] <- paste("Q3", 2013, sep = "_")
+Temp[57:60,3] <- paste("Q2", 2013, sep = "_")
+Temp[61:64,3] <- paste("Q1", 2013, sep = "_")
+
+Temp <- Temp[rev(rownames(Temp)),]
+Temp <- Temp %>% subset(select = c(1,3,4,5,6,2))
+
+# Match the divisional names
+Temp$Division[Temp$Division == "Total Consumer Business Group"] <- 
+            "Consumer"
+Temp$Division[Temp$Division == "Total Health Care Business Group"] <- 
+            "Health Care"
+Temp$Division[Temp$Division == "Total Transportation and Electronics Business Segment"] <- 
+            "Transportation and Electronics"
+Temp$Division[Temp$Division == "Total Safety and Industrial Business Segment"] <- 
+            "Safety & Industrial"
+
+# Connecting the original and the interpolated data set
+DivRegionInterpol <- rbind(Temp, DivRegionInterpol)
+
+
+# Separate the time series per matrix element
+Interpol_SIAmer <- 
+  DivRegionInterpol[,1:3] %>% filter(Division == "Safety & Industrial")
+Interpol_TEAmer <- 
+  DivRegionInterpol[,1:3] %>% filter(Division == "Transportation and Electronics")
+Interpol_HCAmer <- 
+  DivRegionInterpol[,1:3] %>% filter(Division == "Health Care")
+Interpol_CAmer <- 
+  DivRegionInterpol[,1:3] %>% filter(Division == "Consumer")
+Interpol_SIAsia <- 
+  DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Safety & Industrial")
+Interpol_TEAsia <- 
+  DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Transportation and Electronics")
+Interpol_HCAsia <- 
+  DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Health Care")
+Interpol_CAsia <- 
+  DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Consumer")
+Interpol_SIEur <- 
+  DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Safety & Industrial")
+Interpol_TEEur <- 
+  DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Transportation and Electronics")
+Interpol_HCEur <- 
+  DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Health Care")
+Interpol_CEur <- 
+  DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Consumer")
+
+
+
+# Implementing of the AR
+
+
+
+
+
+
+
+
+
+
+## Safety & Industrial in Americans
+
+safeInduAmer <- SafeInduRegion_Train[,2:3]
+safeInduAmer_Val <- safeInduAmer[13:16,]
+
+# First part: Matrix elements
+SafeInduAmer_Train <- safeInduAmer[1:12,] %>% t() %>% as.data.frame()
+names(SafeInduAmer_Train) <- SafeInduAmer_Train[1,]
+SafeInduAmer_Train <- SafeInduAmer_Train[-1,]
+names(SafeInduAmer_Train) <- paste("Sales", names(SafeInduAmer_Train), sep = "-")
+rownames(SafeInduAmer_Train) <- "Coefficients"
+
+# Second part: Division from 2013 to 2016
+Temp <- SalesDiv_Train[1,18:33]
+names(Temp) <- paste("S&I", names(Temp), sep = "-")
+SafeInduAmer_Train <- cbind(SafeInduAmer_Train, Temp)
+
+
+# Third part: Region from 2013 to 2016
+Temp <- SalesReg_Train[1,18:33]
+names(Temp) <- paste("Amer", names(Temp), sep="-")
+SafeInduAmer_Train <- cbind(SafeInduAmer_Train, Temp)
+
+# Fourth part: External, relevant parameters
+Temp <- Ext_Parameters_Train[1:28, c(1,2,5,8,14,20)]
+
+
+for (i in ncol(Temp)){
+    paste("Temp", j, sep = "_") <- Temp[,c(1,i)]
+    names(paste("Temp", j, sep = "_")) <- paste()
+}
+
+Temp_1 <- Temp[,1:2] %>% t()
+
+
+# Train for the different quarters
+Temp <- cbind(safeInduAmer[13,2], SafeInduAmer_Train)
+SafeInduAmer_Q1 <- lm(`safeInduAmer[13, 2]`~., Temp)
+summary(SafeInduAmer_Q1)
+
+
+
+
+
+
+
 
 
 # Validation year 2021
