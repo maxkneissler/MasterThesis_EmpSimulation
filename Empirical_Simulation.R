@@ -7,18 +7,23 @@
 
 
 ### Packages for the analysis
+
+library(data.table)
 library(extrafont)
 library(ggplot2)
 library(ggpubr)
 library(gridExtra)
+library(matlib)
 library(stringr)
 library(readxl)
 library(stargazer)
 library(tidyverse)
+library(xts)
 
 
 
-### Import of the different sheets in the database
+### Import of the different sheets of the database
+
 Income_Statement <- read_excel("3M_Data.xlsx", sheet = "Income_Statement")
 Sales_per_Division <- 
                     read_excel("3M_Data.xlsx", sheet = "Sales_per_Division")
@@ -38,7 +43,7 @@ Ext_Parameters <- read_excel("3M_Data.xlsx", sheet = "External Parameters")
 
 
 
-### Net Sales vs. Operating Income vs. Net Income over time
+### Plot 1: Net Sales vs. Operating Income vs. Net Income over time
 
 Fig_One <- Income_Statement[c(1,7,15),] %>% t() %>% as.data.frame()
 names(Fig_One) <- Fig_One[1,]
@@ -75,7 +80,7 @@ ggplot(Fig_One, aes(x=Quarter, y=as.numeric(Income_Figure),
 
 
 
-### Net Sales vs. Operating Income in the different divisions over time
+### Plot 2: Net Sales vs. Operating Income in the different divisions over time
 
 DivSalesFig3 <- Sales_per_Division[c(1,2,3,4,7),] %>% t() %>% as.data.frame()
 names(DivSalesFig3) <- DivSalesFig3[1,]
@@ -153,10 +158,7 @@ OpIncDiv <- ggplot(DivOpFig3, aes(x=Quarter, y=as.numeric(Operating_Income),
         legend.justification = "top") + 
   scale_y_continuous(limits = c(-800, 1200))
 
-# Combine the two plots
-ggarrange(SalesDiv, NULL, OpIncDiv, nrow=3, 
-                      heights = c(1.5, 0.0001, 1.5), align = "h")
-
+## Combine both plots rowwise
 grid.arrange(SalesDiv, OpIncDiv, nrow=5, ncol=1, 
              layout_matrix = rbind(c(1,1,1,NA),
                                    c(1,1,1,NA),
@@ -170,7 +172,7 @@ grid.arrange(SalesDiv, OpIncDiv, nrow=5, ncol=1,
 
 
 
-### Net Sales across the different regions over time
+### Plot 3: Net Sales across the different regions over time
 
 SalesRegionPlot <- Sales_per_Region[1:3,] %>% t() %>% as.data.frame()
 names(SalesRegionPlot) <- SalesRegionPlot[1,]
@@ -197,7 +199,7 @@ ggplot(SalesRegionPlot, aes(x=Quarter, y=as.numeric(Net_Sales),
 
 
 
-### Net Sales across the different regions and divisions over time
+### Plot 4: Net Sales across the different regions and divisions over time
 
 DivRegionPlot <- Division_Region_Matrix_Sales[,1:5]
 names(DivRegionPlot)[1] <- "Division"
@@ -219,7 +221,7 @@ DivRegionPlot <- gather(DivRegionPlot, 3,4,5,
               subset(select = c("Quarter", "Division", "Region", "Net_Sales"))
 
 
-# Production of the separate plots
+## Production the four different plots separately
 SafeIndu <- ggplot(DivRegionPlot %>% filter(Division == "Safety & Industrial"), 
        aes(x=Quarter, y=as.numeric(Net_Sales), 
                             colour=Region, group=Region)) + 
@@ -284,7 +286,7 @@ Cons <- ggplot(DivRegionPlot %>% filter(Division == "Consumer"),
         axis.text.y=element_blank()) + 
   scale_y_continuous(limits = c(0, 2000)) + ggtitle("Consumer")
 
-# Combine the four plots with equal sizes
+## Combine the four plots with equal sizes of the plot (reason for many figures)
 grid.arrange(SafeIndu, TransElec, Health, Cons, ncol=2, nrow = 2,
              layout_matrix = 
                rbind(c(1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
@@ -326,12 +328,13 @@ grid.arrange(SafeIndu, TransElec, Health, Cons, ncol=2, nrow = 2,
 
 
 
+
 ################################################################################
 ###                   Chapter 5.3: Training of the Algorithm                 ###
 ################################################################################
 
 
-### Build up the training and validation sets
+### Training and test sets
 
 Income_Statement_Train <- Income_Statement %>% subset(select=c(1,8:39))
 Income_Statement_Val <- Income_Statement %>% subset(select=c(1:7))
@@ -355,11 +358,11 @@ Ext_Parameters_Train <- Ext_Parameters[1:32,]
 Ext_Parameters_Val <- Ext_Parameters[33:38,]
 
 
-### Linear model as a starting point to define suitable external features
+### Significance test of the external parameters
 
-### 1. Training of the Regions
+## 1. Training with respect to the regions
 
-# Linear model to project the sales in the Americans
+# Sales projection in the Americans
 SalesAmerTrain <- SalesReg_Train[1,] %>% t() %>% as.data.frame()
 SalesAmerTrain <- cbind(Quarter = rownames(SalesAmerTrain), SalesAmerTrain)
 SalesAmerTrain <- SalesAmerTrain[-1,]
@@ -375,14 +378,13 @@ ModelAmerSales <-
   lm(Net_Sales ~ GDP_USA_Perc_Change + Unemp_USA_Perc + IntRate_USA_Perc +
        CPI_USA + Avg_Wage_USA + ConsBaro_USA, SalesAmerTrain)
 
-# Summary Statistics of Linear Output 
-sink("BaseAmer.txt")
-print(summary(ModelAmerSales))
-sink()
+# Summary Statistics
+# sink("BaseAmer.txt")
+summary(ModelAmerSales)
+# sink()
 
 
-
-# Linear model to project the sales in Asia Pacific
+# Sales projection in Asia Pacific
 SalesAsiaTrain <- SalesReg_Train[2,] %>% t() %>% as.data.frame()
 SalesAsiaTrain <- cbind(Quarter = rownames(SalesAsiaTrain), SalesAsiaTrain)
 SalesAsiaTrain <- SalesAsiaTrain[-1,]
@@ -397,12 +399,13 @@ ModelAsiaSales <-
   lm(Net_Sales ~ GDP_CHN_Perc_Change + Umemp_CHN_Perc + IntRate_CHN_Perc + 
 PPP_JPN + CPI_CHN + ExchRate_CHN + Avg_Wage_JPN + ConsBaro_CHN, SalesAsiaTrain)
 
-# Summary Statistics of Linear Output
-sink("BaseAsia.txt")
+# Summary Statistics
+# sink("BaseAsia.txt")
 summary(ModelAsiaSales)
-sink()
+# sink()
 
-# Linear model to project the sales in Europa / Middle East / Africa
+
+# Sales projection in Europa / Middle East / Africa
 SalesEurTrain <- SalesReg_Train[3,] %>% t() %>% as.data.frame()
 SalesEurTrain <- cbind(Quarter = rownames(SalesEurTrain), SalesEurTrain)
 SalesEurTrain <- SalesEurTrain[-1,]
@@ -417,19 +420,19 @@ ModelEurSales <-
   lm(Net_Sales ~ GDP_GER_Perc_Change + Unemp_GER_Perc + IntRate_GER_Perc + PPP_GER + 
        CPI_GER + ExchRate_GER + Avg_Wage_GER + ConsBaro_GER, SalesEurTrain)
 
-# Summary Statistics of Linear Output
-sink("BaseEur.txt)")
-print(summary(ModelEurSales))
-sink()
+# Summary Statisttics
+# sink("BaseEur.txt)")
+summary(ModelEurSales)
+# sink()
 
 
-### 2. Training of the Divisions
+### 2. Training with respect to the divisions
 
 
 # Safety & Industrial
-
 SalesSafeInduTrain <- SalesDiv_Train[1,] %>% t() %>% as.data.frame()
-SalesSafeInduTrain <- cbind(Quarter = rownames(SalesSafeInduTrain), SalesSafeInduTrain)
+SalesSafeInduTrain <- 
+  cbind(Quarter = rownames(SalesSafeInduTrain), SalesSafeInduTrain)
 SalesSafeInduTrain <- SalesSafeInduTrain[-1,]
 SalesSafeInduTrain <- SalesSafeInduTrain[rev(rownames(SalesSafeInduTrain)),]
 rownames(SalesSafeInduTrain) <- 1:nrow(SalesSafeInduTrain)
@@ -438,16 +441,16 @@ names(SalesSafeInduTrain)[2] <- "Net_Sales"
 SalesSafeInduTrain <- cbind(SalesSafeInduTrain, Ext_Parameters_Train[,2:25])
 ModelSafeIndu <- lm(Net_Sales ~ . - Quarter, SalesSafeInduTrain)
 
-# Summary Statistics of Linear Output
-sink("BaseSafeIndu.txt)")
-print(summary(ModelSafeIndu))
-sink()
+# Summary Statistics
+# sink("BaseSafeIndu.txt)")
+summary(ModelSafeIndu)
+# sink()
 
 
 # Transportation and Electronics
-
 SalesTransElecTrain <- SalesDiv_Train[2,] %>% t() %>% as.data.frame()
-SalesTransElecTrain <- cbind(Quarter = rownames(SalesTransElecTrain), SalesTransElecTrain)
+SalesTransElecTrain <- 
+  cbind(Quarter = rownames(SalesTransElecTrain), SalesTransElecTrain)
 SalesTransElecTrain <- SalesTransElecTrain[-1,]
 SalesTransElecTrain <- SalesTransElecTrain[rev(rownames(SalesTransElecTrain)),]
 rownames(SalesTransElecTrain) <- 1:nrow(SalesTransElecTrain)
@@ -456,34 +459,16 @@ names(SalesTransElecTrain)[2] <- "Net_Sales"
 SalesTransElecTrain <- cbind(SalesTransElecTrain, Ext_Parameters_Train[,2:25])
 ModelTransElec <- lm(Net_Sales ~ . - Quarter, SalesTransElecTrain)
 
-# Summary Statistics of Linear Output
-sink("BaseTransElec.txt)")
-print(summary(ModelTransElec))
-sink()
-
-
-# Transportation and Electronics
-
-SalesTransElecTrain <- SalesDiv_Train[2,] %>% t() %>% as.data.frame()
-SalesTransElecTrain <- cbind(Quarter = rownames(SalesTransElecTrain), SalesTransElecTrain)
-SalesTransElecTrain <- SalesTransElecTrain[-1,]
-SalesTransElecTrain <- SalesTransElecTrain[rev(rownames(SalesTransElecTrain)),]
-rownames(SalesTransElecTrain) <- 1:nrow(SalesTransElecTrain)
-names(SalesTransElecTrain)[2] <- "Net_Sales"
-
-SalesTransElecTrain <- cbind(SalesTransElecTrain, Ext_Parameters_Train[,2:25])
-ModelTransElec <- lm(Net_Sales ~ . - Quarter, SalesTransElecTrain)
-
-# Summary Statistics of Linear Output
-sink("BaseTransElec.txt)")
-print(summary(ModelTransElec))
-sink()
+# Summary Statistics
+# sink("BaseTransElec.txt)")
+summary(ModelTransElec)
+# sink()
 
 
 # Health Care
-
 SalesHealthTrain <- SalesDiv_Train[3,] %>% t() %>% as.data.frame()
-SalesHealthTrain <- cbind(Quarter = rownames(SalesHealthTrain), SalesHealthTrain)
+SalesHealthTrain <- 
+  cbind(Quarter = rownames(SalesHealthTrain), SalesHealthTrain)
 SalesHealthTrain <- SalesHealthTrain[-1,]
 SalesHealthTrain <- SalesHealthTrain[rev(rownames(SalesHealthTrain)),]
 rownames(SalesHealthTrain) <- 1:nrow(SalesHealthTrain)
@@ -492,14 +477,13 @@ names(SalesHealthTrain)[2] <- "Net_Sales"
 SalesHealthTrain <- cbind(SalesHealthTrain, Ext_Parameters_Train[,2:25])
 ModelHealth <- lm(Net_Sales ~ . - Quarter, SalesHealthTrain)
 
-# Summary Statistics of Linear Output
-sink("BaseHealth.txt)")
-print(summary(ModelHealth))
-sink()
+# Summary Statistics
+# sink("BaseHealth.txt)")
+summary(ModelHealth)
+# sink()
 
 
 # Consumer
-
 SalesConsTrain <- SalesDiv_Train[4,] %>% t() %>% as.data.frame()
 SalesConsTrain <- cbind(Quarter = rownames(SalesConsTrain), SalesConsTrain)
 SalesConsTrain <- SalesConsTrain[-1,]
@@ -510,17 +494,17 @@ names(SalesConsTrain)[2] <- "Net_Sales"
 SalesConsTrain <- cbind(SalesConsTrain, Ext_Parameters_Train[,2:25])
 ModelCons <- lm(Net_Sales ~ . - Quarter, SalesConsTrain)
 
-# Summary Statistics of Linear Output
-sink("BaseCons.txt)")
-print(summary(ModelCons))
-sink()
+# Summary Statistics
+# sink("BaseCons.txt)")
+summary(ModelCons)
+# sink()
 
 
 
-### 3. Training for Divisions and Regions separately
+### 3. Training for matrix element of division and region
 
 
-# Filter the 4 segments in the 3 regions
+# Eliminate all unallocated positions
 names(DivRegion_Train)[1] <- "Division"
 DivRegion_Train <- DivRegion_Train[,1:5] %>% 
             filter(!grepl("Corporate and Unallocated", Division)) %>%
@@ -528,14 +512,11 @@ DivRegion_Train <- DivRegion_Train[,1:5] %>%
             filter(!grepl("Elimination of Dual Credit", Division))
 
 
-# External Parameters only for the time horizon
+# External Parameters only for the considered time horizon
 DivRegExt_Paramter <- Ext_Parameters_Train[17:32,]
 
 
-### Separate Division Modelling for each region
-
-
-## Safety & Industrial
+## Division: Safety & Industrial, look at all regions separately
 
 SafeInduRegion_Train <- 
             DivRegion_Train %>% filter(Division == "Safety & Industrial")
@@ -544,25 +525,25 @@ SafeInduRegion_Train <- cbind(SafeInduRegion_Train, DivRegExt_Paramter[,2:25])
 # Americans
 SI_Amer <- lm(Americas ~ GDP_USA_Perc_Change + Unemp_USA_Perc + IntRate_USA_Perc + 
                 CPI_USA + Avg_Wage_USA, SafeInduRegion_Train)
-sink("SI_Amer.txt)")
+# sink("SI_Amer.txt)")
 summary(SI_Amer)
-sink()
+# sink()
 
 # Asia Pacific
 SI_Asia <- lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + GDP_CHN_Perc_Change + 
                 ExchRate_CHN + CPI_CHN, SafeInduRegion_Train)
-sink("SI_Asia.txt)")
+# sink("SI_Asia.txt)")
 summary(SI_Asia)
-sink()
+# sink()
 
 # Europe / Middle East / Africa
 SI_Eur <- lm(`Europe, Middle East, Africa` ~ ExchRate_GER, SafeInduRegion_Train)
-sink("SI_Eur.txt)")
+# sink("SI_Eur.txt)")
 summary(SI_Eur)
-sink()
+# sink()
 
 
-## Transportation & Electronics
+## Division: Transportation & Electronics, look at all regions separately
 
 TranElecRegion_Train <- 
       DivRegion_Train %>% filter(Division == "Transportation and Electronics")
@@ -571,30 +552,27 @@ TranElecRegion_Train <- cbind(TranElecRegion_Train, DivRegExt_Paramter[,2:25])
 # Americans
 TE_Amer <- 
   lm(Americas ~ GDP_USA_Perc_Change + Avg_Wage_USA, TranElecRegion_Train)
-sink("TE_Amer.txt)")
+# sink("TE_Amer.txt)")
 summary(TE_Amer)
-sink()
-
+# sink()
 
 # Asia Pacific
 TE_Asia <- 
   lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + CPI_CHN, 
                 TranElecRegion_Train)
-sink("TE_Asia.txt)")
+# sink("TE_Asia.txt)")
 summary(TE_Asia)
-sink()
-
+# sink()
 
 # Europe / Middle East / Africa
 TE_Eur <- 
   lm(`Europe, Middle East, Africa` ~ ExchRate_GER, TranElecRegion_Train)
-sink("TE_Eur.txt)")
+# sink("TE_Eur.txt)")
 summary(TE_Eur)
-sink()
+# sink()
 
 
-
-## Health Care
+## Division: Health Care, look at all regions separately
 
 HealthRegion_Train <- DivRegion_Train %>% filter(Division == "Health Care")
 HealthRegion_Train <- cbind(HealthRegion_Train, DivRegExt_Paramter[,2:25])
@@ -603,31 +581,29 @@ HealthRegion_Train <- cbind(HealthRegion_Train, DivRegExt_Paramter[,2:25])
 HC_Amer <- 
   lm(Americas ~ GDP_USA_Perc_Change + Avg_Wage_USA + Unemp_USA_Perc + CPI_USA, 
      HealthRegion_Train)
-sink("HC_Amer.txt)")
+# sink("HC_Amer.txt)")
 summary(HC_Amer)
-sink()
-
+# sink()
 
 # Asia Pacific
 HC_Asia <- 
   lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + GDP_CHN_Perc_Change, 
      HealthRegion_Train)
-sink("HC_Asia.txt)")
+# sink("HC_Asia.txt)")
 summary(HC_Asia)
-sink()
-
+# sink()
 
 # Europe / Middle East / Africa
 HC_Eur <- 
   lm(`Europe, Middle East, Africa` ~ ExchRate_GER + GDP_GER_Perc_Change, 
         HealthRegion_Train)
-sink("HC_Eur.txt)")
+# sink("HC_Eur.txt)")
 summary(HC_Eur)
-sink()
+# sink()
 
 
 
-## Consumer 
+## Division: Consumer, look at all regions separately 
 
 ConsRegion_Train <- DivRegion_Train %>% filter(Division == "Consumer")
 ConsRegion_Train <- cbind(ConsRegion_Train, DivRegExt_Paramter[,2:25])
@@ -635,34 +611,34 @@ ConsRegion_Train <- cbind(ConsRegion_Train, DivRegExt_Paramter[,2:25])
 # Americans
 C_Amer <- 
   lm(Americas ~ GDP_USA_Perc_Change + Avg_Wage_USA, ConsRegion_Train)
-sink("C_Amer.txt)")
+# sink("C_Amer.txt)")
 summary(C_Amer)
-sink()
-
+# sink()
 
 # Asia Pacific
 C_Asia <- 
   lm(`Asia Pacific` ~ Umemp_CHN_Perc + Avg_Wage_JPN + GDP_CHN_Perc_Change + 
        ExchRate_CHN, ConsRegion_Train)
-sink("C_Asia.txt)")
+# sink("C_Asia.txt)")
 summary(C_Asia)
-sink()
-
+# sink()
 
 # Europe / Middle East / Africa
 C_Eur <- 
   lm(`Europe, Middle East, Africa` ~ ExchRate_GER + Unemp_GER_Perc + ConsBaro_GER, 
      ConsRegion_Train)
-sink("C_Eur.txt)")
+# sink("C_Eur.txt)")
 summary(C_Eur)
-sink()
+# sink()
 
 
-### 4. Training to forecast the budget in the year 2020 by including ext parameters
 
-## Set-Up for the test strategy
+### 4. Training Procedure to forecast the matrix element sales
 
-# Get the means in order to interpolate from 2013 to 2016
+
+## Set-Up of test strategy: Start by interpolating the horizon fr0m 2013 to 2016
+
+## Avg. percentage of total sales of each regions per  division
 names(Division_Region_Matrix_Sales)[1] <- "Division"
 DivRegionInterpol <- Division_Region_Matrix_Sales %>% 
   filter(!grepl("Total Company", Division))
@@ -670,7 +646,6 @@ DivRegionInterpol <- DivRegionInterpol %>%
   filter(!grepl("Elimination of Dual Credit", Division))
 DivRegionInterpol <- DivRegionInterpol %>% 
   filter(!grepl("Corporate and Unallocated", Division))
-
 DivRegionInterpol <- DivRegionInterpol[,-6]
 
 DivRegionInterpol$Perc_Amer <- 
@@ -728,10 +703,10 @@ CEur_Perc <- DivRegionInterpol[,c(1,9)] %>%
   filter(Division == "Consumer") %>%
   summarise(mean = mean(Perc_Eur))
 
-
 DivRegionInterpol <- DivRegionInterpol[,1:6]
 
-# Fill in the divisions and total sales
+
+# Fill the table with the divisional names and total sales
 Temp <- Sales_per_Division[c(1:4), c(1,24:39)]
 Temp[5:64,] <- NA
 j=0
@@ -750,13 +725,15 @@ for (i in 1:15){
 Temp <- Temp[,1:2]
 names(Temp)[1] <- "Division"
 names(Temp)[2] <- "Worldwide"
+
+# Columns for the regional sales per division
 Temp$Period <- NA
 Temp$Americas <- NA
 Temp$`Asia Pacific` <- NA
 Temp$`Europe, Middle East, Africa` <- NA
 
-# Compute the divisional and regional sales with the interpolated mean
 
+# Compute the divisional and regional sales with the interpolated mean
 j=0
 for (i in 1:16){
   
@@ -777,6 +754,7 @@ for (i in 1:16){
   j=j+4
 }
 
+# Insert the correct quarter
 Temp[1:4,3] <- paste("Q4", 2016, sep = "_")
 Temp[5:8,3] <- paste("Q3", 2016, sep = "_")
 Temp[9:12,3] <- paste("Q2", 2016, sep = "_")
@@ -797,7 +775,8 @@ Temp[61:64,3] <- paste("Q1", 2013, sep = "_")
 Temp <- Temp[rev(rownames(Temp)),]
 Temp <- Temp %>% subset(select = c(1,3,4,5,6,2))
 
-# Match the divisional names
+
+# Match the divisional names with the original table
 Temp$Division[Temp$Division == "Total Consumer Business Group"] <- 
             "Consumer"
 Temp$Division[Temp$Division == "Total Health Care Business Group"] <- 
@@ -807,99 +786,308 @@ Temp$Division[Temp$Division == "Total Transportation and Electronics Business Se
 Temp$Division[Temp$Division == "Total Safety and Industrial Business Segment"] <- 
             "Safety & Industrial"
 
-# Connecting the original and the interpolated data set
+# Connect the original and the interpolated data set
 DivRegionInterpol <- rbind(Temp, DivRegionInterpol)
 
 
-# Separate the time series per matrix element
+# Separate the time series of each matrix element
 Interpol_SIAmer <- 
   DivRegionInterpol[,1:3] %>% filter(Division == "Safety & Industrial")
+names(Interpol_SIAmer)[3] <- "Region"
 Interpol_TEAmer <- 
-  DivRegionInterpol[,1:3] %>% filter(Division == "Transportation and Electronics")
+  DivRegionInterpol[,1:3] %>% 
+  filter(Division == "Transportation and Electronics")
+names(Interpol_TEAmer)[3] <- "Region"
 Interpol_HCAmer <- 
   DivRegionInterpol[,1:3] %>% filter(Division == "Health Care")
+names(Interpol_HCAmer)[3] <- "Region"
 Interpol_CAmer <- 
   DivRegionInterpol[,1:3] %>% filter(Division == "Consumer")
+names(Interpol_CAmer)[3] <- "Region"
 Interpol_SIAsia <- 
   DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Safety & Industrial")
+names(Interpol_SIAsia)[3] <- "Region"
 Interpol_TEAsia <- 
-  DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Transportation and Electronics")
+  DivRegionInterpol[,c(1:2,4)] %>% 
+  filter(Division == "Transportation and Electronics")
+names(Interpol_TEAsia)[3] <- "Region"
 Interpol_HCAsia <- 
   DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Health Care")
+names(Interpol_HCAsia)[3] <- "Region"
 Interpol_CAsia <- 
   DivRegionInterpol[,c(1:2,4)] %>% filter(Division == "Consumer")
+names(Interpol_CAsia)[3] <- "Region"
 Interpol_SIEur <- 
   DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Safety & Industrial")
+names(Interpol_SIEur)[3] <- "Region"
 Interpol_TEEur <- 
-  DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Transportation and Electronics")
+  DivRegionInterpol[,c(1:2,5)] %>% 
+  filter(Division == "Transportation and Electronics")
+names(Interpol_TEEur)[3] <- "Region"
 Interpol_HCEur <- 
   DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Health Care")
+names(Interpol_HCEur)[3] <- "Region"
 Interpol_CEur <- 
   DivRegionInterpol[,c(1:2,5)] %>% filter(Division == "Consumer")
-
-
-
-# Implementing of the AR
-
+names(Interpol_CEur)[3] <- "Region"
 
 
 
 
+## Perform the first AR (test for impact)
 
 
+## Test how many lags should be included
+lags_criterion <- function(Data_orig, lags, OLS, set){
 
-
-
-## Safety & Industrial in Americans
-
-safeInduAmer <- SafeInduRegion_Train[,2:3]
-safeInduAmer_Val <- safeInduAmer[13:16,]
-
-# First part: Matrix elements
-SafeInduAmer_Train <- safeInduAmer[1:12,] %>% t() %>% as.data.frame()
-names(SafeInduAmer_Train) <- SafeInduAmer_Train[1,]
-SafeInduAmer_Train <- SafeInduAmer_Train[-1,]
-names(SafeInduAmer_Train) <- paste("Sales", names(SafeInduAmer_Train), sep = "-")
-rownames(SafeInduAmer_Train) <- "Coefficients"
-
-# Second part: Division from 2013 to 2016
-Temp <- SalesDiv_Train[1,18:33]
-names(Temp) <- paste("S&I", names(Temp), sep = "-")
-SafeInduAmer_Train <- cbind(SafeInduAmer_Train, Temp)
-
-
-# Third part: Region from 2013 to 2016
-Temp <- SalesReg_Train[1,18:33]
-names(Temp) <- paste("Amer", names(Temp), sep="-")
-SafeInduAmer_Train <- cbind(SafeInduAmer_Train, Temp)
-
-# Fourth part: External, relevant parameters
-Temp <- Ext_Parameters_Train[1:28, c(1,2,5,8,14,20)]
-
-
-for (i in ncol(Temp)){
-    paste("Temp", j, sep = "_") <- Temp[,c(1,i)]
-    names(paste("Temp", j, sep = "_")) <- paste()
+  z <- 1+lags
+  y <- 2+lags
+  Ext_Par <- Ext_Parameters[y:36,]
+  
+  if (lags == 0){
+      X <- as.data.frame(matrix(1,35,3))
+      # quadratic trend
+      X[,2] <- (1:nrow(X))^2
+      X[,3] <- Data_orig[1:35,1]
+      X <- as.matrix(X)
+  }
+  else {
+      Data <- 
+      setDT(Data_orig)[, paste0('lagged', 1:35):= shift(Region,1:35)][]
+    
+      Data <- Data[lags+2:nrow(Data),]
+    
+      X <- data.frame(matrix(ncol=3, nrow=35-lags))
+      naming <- c("Constant", "Trend", "Lastval")
+      colnames(X) <- naming
+    
+      X$Constant <- 1
+      # quadratic trend
+      X$Trend <- (1:nrow(X))^2
+      X$Lastval <- Data_orig[c(z:35),1]
+  
+      Data_lagged <- matrix(0, 35-lags, lags) %>% as.data.frame()
+      Data_lagged <- Data[,2:z]-Data[,3:y]
+      Data_lagged <- Data_lagged[1:nrow(X),]
+  
+      X <- cbind(X, Data_lagged) %>% as.matrix()
+  }
+  
+  if (set == 1){
+    # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Unemp_USA_Perc, 
+    #            Ext_Par$IntRate_USA_Perc, Ext_Par$CPI_USA, Ext_Par$Avg_Wage_USA)
+    X <- cbind(X, Ext_Par$GDP_USA_Perc_Change)
+  } else if (set == 2){
+    # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN, 
+    #            Ext_Par$GDP_CHN_Perc_Change, Ext_Par$ExchRate_CHN, Ext_Par$CPI_CHN)
+    X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN, Ext_Par$ExchRate_CHN)
+  } else if (set == 3){
+    X <- cbind(X, Ext_Par$ExchRate_GER)
+  } else if (set == 4){
+    # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Avg_Wage_USA)
+    X <- cbind(X, Ext_Par$Avg_Wage_USA)
+  } else if (set == 5){
+    # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN, Ext_Par$CPI_CHN)
+    X <- cbind(X, Ext_Par$Avg_Wage_JPN)
+  } else if (set == 6){
+    # X <- cbind(X, Ext_Par$ExchRate_GER)
+    X <- X
+  } else if (set == 7){
+    # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Avg_Wage_USA, 
+    #                     Ext_Par$Unemp_USA_Perc, Ext_Par$CPI_USA)
+    X <- cbind(X, Ext_Par$Avg_Wage_USA)
+  } else if (set == 8){
+    # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN, 
+    #                    Ext_Par$GDP_CHN_Perc_Change)
+    X <- cbind(X, Ext_Par$Avg_Wage_JPN)
+  } else if (set == 9){
+    # X <- cbind(X, Ext_Par$ExchRate_GER, Ext_Par$GDP_GER_Perc_Change)
+    X <- X
+  } else if (set == 10){
+    # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Avg_Wage_USA)
+    X <- cbind(X, Ext_Par$Avg_Wage_USA)
+  } else if (set == 11){
+    # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN, 
+    #            Ext_Par$GDP_CHN_Perc_Change, Ext_Par$ExchRate_CHN)
+    X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$GDP_CHN_Perc_Change, 
+               Ext_Par$ExchRate_CHN)
+  } else if (set == 12){
+    # X <- cbind(X, Ext_Par$ExchRate_GER, Ext_Par$Unemp_GER_Perc, 
+    #            Ext_Par$ConsBaro_GER)
+    X <- cbind(X, Ext_Par$ExchRate_GER)
+  }
+  
+  
+  # Compute the OLS parameters
+  X_trans <- t(X) %>% as.matrix()
+  First_Part <- as.matrix(inv(X_trans%*%X))
+  Second_Part <- as.matrix(X_trans%*%as.matrix(Data_orig[y:nrow(Data_orig),1]))
+  
+  OLS_solution  <- First_Part %*% Second_Part
+  
+  # Parameter for the information criterion
+  rho_hat <- OLS_solution[3,1]
+  Temp <- rep(1,ncol(X_trans))
+  s_squared <- 
+    1/(ncol(X_trans)-nrow(First_Part))%*%(Temp%*%as.matrix((Data_orig[y:nrow(Data_orig),1]-X%*%OLS_solution)))^2
+  
+  std_error_OLS <- sqrt(First_Part*s_squared[1,1])
+  rho_hat_std_error <- std_error_OLS[3,3]
+  
+  t_stat <- (rho_hat-1)/rho_hat_std_error
+  
+  SBC <- log(s_squared)+nrow(First_Part)/ncol(X_trans)*log(ncol(X_trans))
+  AIC <- log(s_squared)+2*nrow(First_Part)/ncol(X_trans)
+  
+  Output_matrix <- rbind(rho_hat,SBC,AIC)
+  
+  if (OLS == TRUE){
+    return(OLS_solution)
+      } else{
+    return(Output_matrix)
+  }
 }
 
-Temp_1 <- Temp[,1:2] %>% t()
+IC <- data.frame(matrix(ncol=14, nrow=36))
+
+for (i in 0:13){
+  IC[1:3,i+1] <- lags_criterion(Interpol_SIAmer[,3], i, FALSE,1)
+  IC[4:6,i+1] <- lags_criterion(Interpol_SIAsia[,3], i, FALSE,2)
+  IC[7:9,i+1] <- lags_criterion(Interpol_SIEur[,3], i, FALSE,3)
+  IC[10:12,i+1] <- lags_criterion(Interpol_TEAmer[,3], i, FALSE,4)
+  IC[13:15,i+1] <- lags_criterion(Interpol_TEAsia[,3], i, FALSE,5)
+  IC[16:18,i+1] <- lags_criterion(Interpol_TEEur[,3], i, FALSE,6)
+  IC[19:21,i+1] <- lags_criterion(Interpol_HCAmer[,3], i, FALSE,7)
+  IC[22:24,i+1] <- lags_criterion(Interpol_HCAsia[,3], i, FALSE,8)
+  IC[25:27,i+1] <- lags_criterion(Interpol_HCEur[,3], i, FALSE,9)
+  IC[28:30,i+1] <- lags_criterion(Interpol_CAmer[,3], i, FALSE,10)
+  IC[31:33,i+1] <- lags_criterion(Interpol_CAsia[,3], i, FALSE,11)
+  IC[34:36,i+1] <- lags_criterion(Interpol_CEur[,3], i, FALSE,12)
+}
+
+# Find the lowest value in each row to fulfill the criterion
+# Besides the T&E Asia, the criterion always decide for the same lags
+# There, the SBC (because simpler) is chosen!
+
+IC_min <- as.matrix(apply(IC,1,which.min))
+IC_SBC <- as.data.frame(IC_min[c(2,5,8,11,14,17,20,23,26,29,32,35)])
+IC_SBC <- IC_SBC -1
 
 
-# Train for the different quarters
-Temp <- cbind(safeInduAmer[13,2], SafeInduAmer_Train)
-SafeInduAmer_Q1 <- lm(`safeInduAmer[13, 2]`~., Temp)
-summary(SafeInduAmer_Q1)
+# Find the parameters for the estimation
+SIAmer_Coef <- lags_criterion(Interpol_SIAmer[,3], IC_SBC[1,], TRUE,1)
+SIAsia_Coef <- lags_criterion(Interpol_SIAsia[,3], IC_SBC[2,], TRUE,2)
+SIEur_Coef <- lags_criterion(Interpol_SIEur[,3], IC_SBC[3,], TRUE,3)
+TEAmer_Coef <- lags_criterion(Interpol_TEAmer[,3], IC_SBC[4,], TRUE,4)
+TEAsia_Coef <- lags_criterion(Interpol_TEAsia[,3], IC_SBC[5,], TRUE,5)
+TEEur_Coef <- lags_criterion(Interpol_TEEur[,3], IC_SBC[6,], TRUE,6)
+HCAmer_Coef <- lags_criterion(Interpol_HCAmer[,3], IC_SBC[7,], TRUE,7)
+HCAsia_Coef <- lags_criterion(Interpol_HCAsia[,3], IC_SBC[8,], TRUE,8)
+HCEur_Coef <- lags_criterion(Interpol_HCEur[,3], IC_SBC[9,], TRUE,9)
+CAmer_Coef <- lags_criterion(Interpol_CAmer[,3], IC_SBC[10,], TRUE,10)
+CAsia_Coef <- lags_criterion(Interpol_CAsia[,3], IC_SBC[11,], TRUE,11)
+CEur_Coef <- lags_criterion(Interpol_CEur[,3], IC_SBC[12,], TRUE,12)
+
+# Predict the upcoming sales of all divisional and regional matrix elements
+Sales_Hist <- 
+  cbind(Interpol_SIAmer[,3], Interpol_SIAsia[,3], Interpol_SIEur[,3], 
+        Interpol_TEAmer[,3], Interpol_TEAsia[,3], Interpol_TEEur[,3],
+        Interpol_HCAmer[,3], Interpol_HCAsia[,3], Interpol_HCEur[,3],
+        Interpol_CAmer[,3], Interpol_CAsia[,3], Interpol_CEur[,3])
+
+Sales_Pred <- function(Coeff, Time_Series, Lags, Externals){
+  
+  Start_Ext <- 3+Lags+1
+  
+  if (Lags == 0){
+    pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1)
+  } else if (Lags == 1){
+    pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
+              Coef[4]*(rev(Time_Series)[1]-rev(Time_Series)[2])
+  } else if (Lags == 2){
+    pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
+            Coef[4]*(rev(Time_Series)[1]-rev(Time_Series)[2]) +
+            Coef[5]*(rev(Time_Series)[2]-rev(Time_Series)[3])
+  } else if (Lags == 3){
+    pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
+            Coef[4]*(rev(Time_Series)[1]-rev(Time_Series)[2]) +
+            Coef[5]*(rev(Time_Series)[2]-rev(Time_Series)[3]) +
+            Coef[6]*(rev(Time_Series)[3]-rev(Time_Series)[4])
+  } else if (Lags == 4){
+    pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
+      Coef[4]*(rev(Time_Series)[1]-rev(Time_Series)[2]) +
+      Coef[5]*(rev(Time_Series)[2]-rev(Time_Series)[3]) +
+      Coef[6]*(rev(Time_Series)[3]-rev(Time_Series)[4]) +
+      Coef[7]*(rev(Time_Series)[4]-rev(Time_Series)[5])
+  }
+  
+  if(Externals != FALSE){
+  pred <- pred + Coeff[Start_Ext:nrow(Coeff)]%*%as.matrix(t(Externals))
+  }
+  
+  return(pred)
+}
+
+# Predict the sales for the next quarters
+
+Temp <- data.frame(matrix(ncol=12, nrow=1))
+names(Temp) <- names(Sales_Hist)
+
+for (i in 1:4){
+  
+if (i==1){
+  y <- Ext_Parameters[37,]
+} else {
+  y <- Ext_Parameters[38,]
+}
+  
+Temp[,1] <- 
+      Sales_Pred(SIAmer_Coef, Sales_Hist[,1], IC_SBC[1,1],y[,2])
+      # Sales_Pred(SIAmer_Coef, Sales_Hist[,1], IC_SBC[1,1],y[,c(2,5,8,14,20)])
+
+Temp[,2] <- 
+      Sales_Pred(SIAsia_Coef, Sales_Hist[,2], IC_SBC[2,1],y[,c(7,22,19)])
+      # Sales_Pred(SIAsia_Coef, Sales_Hist[,2], IC_SBC[2,1],y[,c(7,22,4,19,16)])
+Temp[,3] <- 
+      Sales_Pred(SIEur_Coef, Sales_Hist[,3], IC_SBC[3,1],y[,18])
+
+Temp[,4] <- 
+      Sales_Pred(TEAmer_Coef, Sales_Hist[,4], IC_SBC[4,1],y[,20])
+      # Sales_Pred(TEAmer_Coef, Sales_Hist[,4], IC_SBC[4,1],y[,c(2,20)])
+
+Temp[,5] <- 
+      Sales_Pred(TEAsia_Coef, Sales_Hist[,5], IC_SBC[5,1],y[,22])
+      # Sales_Pred(TEAsia_Coef, Sales_Hist[,5], IC_SBC[5,1],y[,c(7,22,16)])
+
+Temp[,6] <- 
+      Sales_Pred(TEEur_Coef, Sales_Hist[,6], IC_SBC[6,1],FALSE)
+      # Sales_Pred(TEEur_Coef, Sales_Hist[,6], IC_SBC[6,1],y[,18])
+
+Temp[,7] <- 
+      Sales_Pred(HCAmer_Coef, Sales_Hist[,7], IC_SBC[7,1],y[,20])
+      # Sales_Pred(HCAmer_Coef, Sales_Hist[,7], IC_SBC[7,1],y[,c(2,20,5,14)])
+
+Temp[,8] <- 
+      Sales_Pred(HCAsia_Coef, Sales_Hist[,8], IC_SBC[8,1],y[,22])
+      # Sales_Pred(HCAsia_Coef, Sales_Hist[,8], IC_SBC[8,1],y[,c(7,22,4)])
+
+Temp[,9] <- 
+      Sales_Pred(HCEur_Coef, Sales_Hist[,9], IC_SBC[9,1],FALSE)
+      # Sales_Pred(HCEur_Coef, Sales_Hist[,9], IC_SBC[9,1],y[,c(18,3)])
+
+Temp[,10] <- 
+      Sales_Pred(CAmer_Coef, Sales_Hist[,10], IC_SBC[10,1],y[,20])
+      # Sales_Pred(CAmer_Coef, Sales_Hist[,10], IC_SBC[10,1],y[,c(2,20)])
+
+Temp[,11] <- 
+      Sales_Pred(CAsia_Coef, Sales_Hist[,11], IC_SBC[11,1],y[,c(7,4,19)])
+      # Sales_Pred(CAsia_Coef, Sales_Hist[,11], IC_SBC[11,1],y[,c(7,22,4,19)])
+
+Temp[,12] <- 
+      Sales_Pred(CEur_Coef, Sales_Hist[,12], IC_SBC[12,1],y[,18])
+      # Sales_Pred(CEur_Coef, Sales_Hist[,12], IC_SBC[12,1],y[,c(18,6,24)])
 
 
-
-
-
-
-
-
-
-# Validation year 2021
-
-
-# Compute the predictions for the next quarter
+Sales_Hist <- rbind(Sales_Hist, Temp)
+}
 
