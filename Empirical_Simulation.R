@@ -1009,10 +1009,10 @@ lags_criterion_adj <- function(Data_orig, lags, div, region){
   if (lags == 0){
     X <- as.data.frame(matrix(1,35,3))
     # linear trend
-    # X[,2] <- 1:nrow(X)
+    X[,2] <- 1:nrow(X)
     
     # quadratic trend
-    X[,2] <- (1:nrow(X))^2
+    #X[,2] <- (1:nrow(X))^2
     X[,3] <- Data_orig[1:35,1]
     X <- as.matrix(X)
   } else {
@@ -1027,10 +1027,10 @@ lags_criterion_adj <- function(Data_orig, lags, div, region){
     # set up the X matrix for the OLS estimation
     X$Constant <- 1
     # linear trend
-    # X[,2] <- 1:nrow(X)
+    X[,2] <- 1:nrow(X)
     
     # quadratic trend
-    X$Trend <- (1:nrow(X))^2
+    # X$Trend <- (1:nrow(X))^2
     X$Lastval <- Data_orig[c(z:35),1]
     
     Data_lagged <- matrix(0, 35-lags, lags) %>% as.data.frame()
@@ -1143,7 +1143,7 @@ coeff_estimate <- function(SI, TE, HC, C, lagged_vals, region, SBC){
   if (lagged_vals == 0){
     X <- as.data.frame(matrix(1,length_TS*4,2))
     # linear trend
-    # X[,2] <- 1:nrow(X)
+    # X[,2] <- 1:length_TS
     
     # quadratic trend
     X[,2] <- (1:length_TS)^2
@@ -1294,42 +1294,26 @@ Sales_Hist <-
         Interpol_HCAmer[,3], Interpol_HCAsia[,3], Interpol_HCEur[,3],
         Interpol_CAmer[,3], Interpol_CAsia[,3], Interpol_CEur[,3])
 
-
+names(Sales_Hist)[1] <- "S&I Americans"
+names(Sales_Hist)[2] <- "S&I Asia Pacific"
+names(Sales_Hist)[3] <- "S&I European"
+names(Sales_Hist)[4] <- "T&E Americans"
+names(Sales_Hist)[5] <- "T&E Asia Pacific"
+names(Sales_Hist)[6] <- "T&E European"
+names(Sales_Hist)[7] <- "HC Americans"
+names(Sales_Hist)[8] <- "HC Asia Pacific"
+names(Sales_Hist)[9] <- "HC European"
+names(Sales_Hist)[10] <- "C Americans"
+names(Sales_Hist)[11] <- "C Asia Pacific"
+names(Sales_Hist)[12] <- "C European"
 
 ## Set-up of function to predict the sales
-Sales_Pred <- function(Coeff, Time_Series, Lags, Externals){
+Sales_Pred <- function(Coeff, Prev_val, Externals){
   
-  Start_Ext <- 3+Lags+1
-  
-  # Look at the optimal lags to decide for the equation set-up
-  if (Lags == 0){
-      pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1)
-  } else if (Lags == 1){
-      pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
-              Coeff[4]*(rev(Time_Series)[1]-rev(Time_Series)[2])
-  } else if (Lags == 2){
-      pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
-            Coeff[4]*(rev(Time_Series)[1]-rev(Time_Series)[2]) +
-            Coeff[5]*(rev(Time_Series)[2]-rev(Time_Series)[3])
-  } else if (Lags == 3){
-      pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
-            Coeff[4]*(rev(Time_Series)[1]-rev(Time_Series)[2]) +
-            Coeff[5]*(rev(Time_Series)[2]-rev(Time_Series)[3]) +
-            Coeff[6]*(rev(Time_Series)[3]-rev(Time_Series)[4])
-  } else if (Lags == 4){
-      pred <- Coeff[1] + Coeff[2] + Coeff[3]%*%tail(Time_Series,1) + 
-          Coeff[4]*(rev(Time_Series)[1]-rev(Time_Series)[2]) +
-          Coeff[5]*(rev(Time_Series)[2]-rev(Time_Series)[3]) +
-          Coeff[6]*(rev(Time_Series)[3]-rev(Time_Series)[4]) +
-          Coeff[7]*(rev(Time_Series)[4]-rev(Time_Series)[5])
-  }
-  
-  # Include or exclude external parameters dependent on statistical significance
-  # if(Externals != FALSE){
-  # pred <- pred + Coeff[Start_Ext:nrow(Coeff)]%*%as.matrix(t(Externals))
-  # }
-  # 
-  # return(pred)
+    pred <- 
+      as.numeric(Coeff[1]+Coeff[2]+Coeff[3]*Prev_val)+Coeff[4]*Externals[1,1]+Coeff[5]*Externals[1,2]
+    
+    return(pred)
 }
 
 ## Predict the sales for the next quarters
@@ -1343,58 +1327,47 @@ for (i in 1:4){
     # Only the external parameters for the first and second quarter given
     # Second quarter parameters are assumed to be stable for third/fourth quarter
     if (i==1){
-      y <- Ext_Parameters[37,]
+      y <- Ext_Parameters_Chg[37,]
     } else {
-      y <- Ext_Parameters[38,]
+      y <- Ext_Parameters_Chg[38,]
     }
   
   # Predict the sales for each time series
   Temp[,1] <- 
-        Sales_Pred(SIAmer_Coef, Sales_Hist[,1], IC_SBC[1,1],y[,2])
-        # Sales_Pred(SIAmer_Coef, Sales_Hist[,1], IC_SBC[1,1],y[,c(2,5,8,14,20)])
+        Sales_Pred(pred_coeffs[1:5,1], Sales_Hist[nrow(Sales_Hist),1], y[,c(2,5)])
   
   Temp[,2] <- 
-        Sales_Pred(SIAsia_Coef, Sales_Hist[,2], IC_SBC[2,1],y[,c(7,22,19)])
-        # Sales_Pred(SIAsia_Coef, Sales_Hist[,2], IC_SBC[2,1],y[,c(7,22,4,19,16)])
+        Sales_Pred(pred_coeffs[1:5,2], Sales_Hist[nrow(Sales_Hist),4],y[,c(2,14)])
+
   Temp[,3] <- 
-        Sales_Pred(SIEur_Coef, Sales_Hist[,3], IC_SBC[3,1],y[,18])
+        Sales_Pred(pred_coeffs[1:5,3], Sales_Hist[nrow(Sales_Hist),7],y[,c(2,20)])
   
   Temp[,4] <- 
-        Sales_Pred(TEAmer_Coef, Sales_Hist[,4], IC_SBC[4,1],y[,20])
-        # Sales_Pred(TEAmer_Coef, Sales_Hist[,4], IC_SBC[4,1],y[,c(2,20)])
+        Sales_Pred(pred_coeffs[1:5,4], Sales_Hist[nrow(Sales_Hist),10],y[,c(2,23)])
   
   Temp[,5] <- 
-        Sales_Pred(TEAsia_Coef, Sales_Hist[,5], IC_SBC[5,1],y[,22])
-        # Sales_Pred(TEAsia_Coef, Sales_Hist[,5], IC_SBC[5,1],y[,c(7,22,16)])
+      Sales_Pred(pred_coeffs[6:10,1], Sales_Hist[nrow(Sales_Hist),3], y[,c(3,6)])
   
   Temp[,6] <- 
-        Sales_Pred(TEEur_Coef, Sales_Hist[,6], IC_SBC[6,1],FALSE)
-        # Sales_Pred(TEEur_Coef, Sales_Hist[,6], IC_SBC[6,1],y[,18])
+        Sales_Pred(pred_coeffs[6:10,2], Sales_Hist[nrow(Sales_Hist),6],y[,c(3,15)])
   
   Temp[,7] <- 
-        Sales_Pred(HCAmer_Coef, Sales_Hist[,7], IC_SBC[7,1],y[,20])
-        # Sales_Pred(HCAmer_Coef, Sales_Hist[,7], IC_SBC[7,1],y[,c(2,20,5,14)])
+        Sales_Pred(pred_coeffs[6:10,3], Sales_Hist[nrow(Sales_Hist),9],y[,c(3,21)])
   
   Temp[,8] <- 
-        Sales_Pred(HCAsia_Coef, Sales_Hist[,8], IC_SBC[8,1],y[,22])
-        # Sales_Pred(HCAsia_Coef, Sales_Hist[,8], IC_SBC[8,1],y[,c(7,22,4)])
+        Sales_Pred(pred_coeffs[6:10,4], Sales_Hist[nrow(Sales_Hist),12],y[,c(3,24)])
   
   Temp[,9] <- 
-        Sales_Pred(HCEur_Coef, Sales_Hist[,9], IC_SBC[9,1],FALSE)
-        # Sales_Pred(HCEur_Coef, Sales_Hist[,9], IC_SBC[9,1],y[,c(18,3)])
+      Sales_Pred(pred_coeffs[11:15,1], Sales_Hist[nrow(Sales_Hist),2], y[,c(4,7)])
   
   Temp[,10] <- 
-        Sales_Pred(CAmer_Coef, Sales_Hist[,10], IC_SBC[10,1],y[,20])
-        # Sales_Pred(CAmer_Coef, Sales_Hist[,10], IC_SBC[10,1],y[,c(2,20)])
+        Sales_Pred(pred_coeffs[11:15,2], Sales_Hist[nrow(Sales_Hist),5],y[,c(4,16)])
   
   Temp[,11] <- 
-        Sales_Pred(CAsia_Coef, Sales_Hist[,11], IC_SBC[11,1],y[,c(7,4,19)])
-        # Sales_Pred(CAsia_Coef, Sales_Hist[,11], IC_SBC[11,1],y[,c(7,22,4,19)])
+        Sales_Pred(pred_coeffs[11:15,3], Sales_Hist[nrow(Sales_Hist),8],y[,c(4,22)])
   
   Temp[,12] <-
-        Sales_Pred(CEur_Coef, Sales_Hist[,12], IC_SBC[12,1],y[,18])
-        # Sales_Pred(CEur_Coef, Sales_Hist[,12], IC_SBC[12,1],y[,c(18,6,24)])
-  
+        Sales_Pred(pred_coeffs[11:15,4], Sales_Hist[nrow(Sales_Hist),11],y[,c(4,25)])
   
   # Add the projected sales in order to estimate the next quarter
   Sales_Hist <- rbind(Sales_Hist, Temp)
