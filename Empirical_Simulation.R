@@ -33,7 +33,8 @@ Sales_per_Region <- read_excel("3M_Data.xlsx", sheet = "Sales_per_Region")
 Division_Region_Matrix_Sales <- 
             read_excel("3M_Data.xlsx", sheet = "Division_Region_Matrix_Sales")
 Ext_Parameters <- read_excel("3M_Data.xlsx", sheet = "External Parameters")
-Ext_Parameters_Chg <- read_excel("3M_Data.xlsx", sheet = "External Parameters Changes")
+Ext_Parameters_Chg <- 
+            read_excel("3M_Data.xlsx", sheet = "External Parameters Changes")
 
 
 
@@ -337,16 +338,10 @@ grid.arrange(SafeIndu, TransElec, Health, Cons, ncol=2, nrow = 2,
 
 ### Training and test sets
 
-Income_Statement_Train <- Income_Statement %>% subset(select=c(1,8:39))
-Income_Statement_Val <- Income_Statement %>% subset(select=c(1:7))
-
-Division_Region_Matrix_Sales <- 
+Division_Region_Matrix_Sales <-
   Division_Region_Matrix_Sales[rev(rownames(Division_Region_Matrix_Sales)),]
 DivRegion_Train <- Division_Region_Matrix_Sales[1:112,]
 DivRegion_Val <- Division_Region_Matrix_Sales[113:140,]
-
-OpInc_Train <- OpIncome_per_Division %>% subset(select=c(1,8:39))
-OpInc_Val <- OpIncome_per_Division %>% subset(select=c(1:7))
 
 SalesDiv_Train <- Sales_per_Division %>% subset(select=c(1,8:39))
 SalesDiv_Val <- Sales_per_Division %>% subset(select=c(1:7))
@@ -358,6 +353,7 @@ Ext_Parameters <- Ext_Parameters[rev(rownames(Ext_Parameters)),]
 Ext_Parameters_Chg <- Ext_Parameters_Chg[rev(rownames(Ext_Parameters_Chg)),]
 Ext_Parameters_Train <- Ext_Parameters[1:32,]
 Ext_Parameters_Val <- Ext_Parameters[33:38,]
+
 
 
 ### Significance test of the external parameters
@@ -428,8 +424,8 @@ summary(ModelEurSales)
 # sink()
 
 
-### 2. Training with respect to the divisions
 
+## 2. Training with respect to the divisions
 
 # Safety & Industrial
 SalesSafeInduTrain <- SalesDiv_Train[1,] %>% t() %>% as.data.frame()
@@ -503,7 +499,7 @@ summary(ModelCons)
 
 
 
-### 3. Training for matrix element of division and region
+## 3. Training for matrix element of division and region
 
 
 # Eliminate all unallocated positions
@@ -518,8 +514,8 @@ DivRegion_Train <- DivRegion_Train[,1:5] %>%
 DivRegExt_Paramter <- Ext_Parameters_Train[17:32,]
 
 
-## Division: Safety & Industrial, look at all regions separately
 
+## Division: Safety & Industrial, look at all regions separately
 SafeInduRegion_Train <- 
             DivRegion_Train %>% filter(Division == "Safety & Industrial")
 SafeInduRegion_Train <- cbind(SafeInduRegion_Train, DivRegExt_Paramter[,2:25])
@@ -638,9 +634,9 @@ summary(C_Eur)
 ### 4. Training Procedure to forecast the matrix element sales
 
 
-## Set-Up of test strategy: Start by interpolating the horizon fr0m 2013 to 2016
+## Interpolation from 2013 to 2016
 
-## Avg. percentage of total sales of each regions per  division
+# Avg. percentage of total sales of each regions per  division
 names(Division_Region_Matrix_Sales)[1] <- "Division"
 DivRegionInterpol <- Division_Region_Matrix_Sales %>% 
   filter(!grepl("Total Company", Division))
@@ -792,7 +788,8 @@ Temp$Division[Temp$Division == "Total Safety and Industrial Business Segment"] <
 DivRegionInterpol <- rbind(Temp, DivRegionInterpol)
 
 
-# Separate the data frame into each individual time series
+## Data frame separation into the interpolated time series
+
 Interpol_SIAmer <- 
   DivRegionInterpol[,1:3] %>% filter(Division == "Safety & Industrial")
 names(Interpol_SIAmer)[3] <- "Region"
@@ -837,165 +834,15 @@ names(Interpol_CEur)[3] <- "Region"
 
 ### Estimation of the underlying process
 
-## AIC / SBC to determine the amount of lagged differences
-lags_criterion <- function(Data_orig, lags, OLS, set){
+## AIC / SBC to determine the reject the null of a unit root
 
-  # Help parameters
-  z <- 1+lags
-  y <- 2+lags
-  Ext_Par <- Ext_Parameters[y:36,]
-  
-  # Different setups for matrices with or without lags
-  if (lags == 0){
-      X <- as.data.frame(matrix(1,35,3))
-      # linear trend
-      # X[,2] <- 1:nrow(X)
-      
-      # quadratic trend
-      X[,2] <- (1:nrow(X))^2
-      X[,3] <- Data_orig[1:35,1]
-      X <- as.matrix(X)
-  }
-  else {
-      # Function to lag the time series
-      Data <- setDT(Data_orig)[, paste0('lagged', 1:35):= shift(Region,1:35)][]
-      Data <- Data[lags+2:nrow(Data),]
-    
-      X <- data.frame(matrix(ncol=3, nrow=35-lags))
-      naming <- c("Constant", "Trend", "Lastval")
-      colnames(X) <- naming
-    
-      # set up the X matrix for the OLS estimation
-      X$Constant <- 1
-      # linear trend
-      # X[,2] <- 1:nrow(X)
-      
-      # quadratic trend
-      X$Trend <- (1:nrow(X))^2
-      X$Lastval <- Data_orig[c(z:35),1]
-  
-      Data_lagged <- matrix(0, 35-lags, lags) %>% as.data.frame()
-      Data_lagged <- Data[,2:z]-Data[,3:y]
-      Data_lagged <- Data_lagged[1:nrow(X),]
-  
-      X <- cbind(X, Data_lagged) %>% as.matrix()
-  }
-  
-    # Include different external parameters dependent on the time series
-    if (set == 1){
-      # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Unemp_USA_Perc,
-      #            Ext_Par$IntRate_USA_Perc, Ext_Par$CPI_USA, Ext_Par$Avg_Wage_USA)
-      X <- cbind(X, Ext_Par$GDP_USA_Perc_Change)
-    } else if (set == 2){
-      # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN,
-      #            Ext_Par$GDP_CHN_Perc_Change, Ext_Par$ExchRate_CHN, Ext_Par$CPI_CHN)
-      X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN, Ext_Par$ExchRate_CHN)
-    } else if (set == 3){
-      X <- cbind(X, Ext_Par$ExchRate_GER)
-    } else if (set == 4){
-      # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Avg_Wage_USA)
-      X <- cbind(X, Ext_Par$Avg_Wage_USA)
-    } else if (set == 5){
-      # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN, Ext_Par$CPI_CHN)
-      X <- cbind(X, Ext_Par$Avg_Wage_JPN)
-    } else if (set == 6){
-      # X <- cbind(X, Ext_Par$ExchRate_GER)
-      X <- X
-    } else if (set == 7){
-      # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Avg_Wage_USA,
-      #                     Ext_Par$Unemp_USA_Perc, Ext_Par$CPI_USA)
-      X <- cbind(X, Ext_Par$Avg_Wage_USA)
-    } else if (set == 8){
-      # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN,
-      #                    Ext_Par$GDP_CHN_Perc_Change)
-      X <- cbind(X, Ext_Par$Avg_Wage_JPN)
-    } else if (set == 9){
-      # X <- cbind(X, Ext_Par$ExchRate_GER, Ext_Par$GDP_GER_Perc_Change)
-      X <- X
-    } else if (set == 10){
-      # X <- cbind(X, Ext_Par$GDP_USA_Perc_Change, Ext_Par$Avg_Wage_USA)
-      X <- cbind(X, Ext_Par$Avg_Wage_USA)
-    } else if (set == 11){
-      # X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$Avg_Wage_JPN,
-      #            Ext_Par$GDP_CHN_Perc_Change, Ext_Par$ExchRate_CHN)
-      X <- cbind(X, Ext_Par$Umemp_CHN_Perc, Ext_Par$GDP_CHN_Perc_Change,
-                 Ext_Par$ExchRate_CHN)
-    } else if (set == 12){
-      # X <- cbind(X, Ext_Par$ExchRate_GER, Ext_Par$Unemp_GER_Perc,
-      #            Ext_Par$ConsBaro_GER)
-      X <- cbind(X, Ext_Par$ExchRate_GER)
-    }
-    
-  
-    # Compute the OLS parameters
-    X_trans <- t(X) %>% as.matrix()
-    First_Part <- as.matrix(inv(X_trans%*%X))
-    Second_Part <- as.matrix(X_trans%*%as.matrix(Data_orig[y:nrow(Data_orig),1]))
-    OLS_solution  <- First_Part %*% Second_Part
-    
-    # Compute the parts of the information criterion
-    rho_hat <- OLS_solution[3,1]
-    Temp <- rep(1,ncol(X_trans))
-    s_squared <- 
-      1/(ncol(X_trans)-nrow(First_Part))%*%(Temp%*%as.matrix((Data_orig[y:nrow(Data_orig),1]-X%*%OLS_solution)))^2
-    
-    std_error_OLS <- sqrt(First_Part*s_squared[1,1])
-    rho_hat_std_error <- std_error_OLS[3,3]
-    t_stat <- (rho_hat-1)/rho_hat_std_error
-    
-    # Compute both criterion
-    SBC <- log(s_squared)+nrow(First_Part)/ncol(X_trans)*log(ncol(X_trans))
-    AIC <- log(s_squared)+2*nrow(First_Part)/ncol(X_trans)
-    
-    # Different outputs dependent on the stage of the estimation
-    Output_matrix <- rbind(rho_hat,SBC,AIC)
-    
-    if (OLS == TRUE){
-      return(OLS_solution)
-        } else{
-      return(Output_matrix)
-    }
-  }
-
-# Collect the different criterion
-IC <- data.frame(matrix(ncol=14, nrow=36))
-
-# Loop over up to 13 lagged differences
-for (i in 0:13){
-  IC[1:3,i+1] <- lags_criterion(Interpol_SIAmer[,3], i, FALSE,1)
-  IC[4:6,i+1] <- lags_criterion(Interpol_SIAsia[,3], i, FALSE,2)
-  IC[7:9,i+1] <- lags_criterion(Interpol_SIEur[,3], i, FALSE,3)
-  IC[10:12,i+1] <- lags_criterion(Interpol_TEAmer[,3], i, FALSE,4)
-  IC[13:15,i+1] <- lags_criterion(Interpol_TEAsia[,3], i, FALSE,5)
-  IC[16:18,i+1] <- lags_criterion(Interpol_TEEur[,3], i, FALSE,6)
-  IC[19:21,i+1] <- lags_criterion(Interpol_HCAmer[,3], i, FALSE,7)
-  IC[22:24,i+1] <- lags_criterion(Interpol_HCAsia[,3], i, FALSE,8)
-  IC[25:27,i+1] <- lags_criterion(Interpol_HCEur[,3], i, FALSE,9)
-  IC[28:30,i+1] <- lags_criterion(Interpol_CAmer[,3], i, FALSE,10)
-  IC[31:33,i+1] <- lags_criterion(Interpol_CAsia[,3], i, FALSE,11)
-  IC[34:36,i+1] <- lags_criterion(Interpol_CEur[,3], i, FALSE,12)
-}
-
-# Find the lowest value in each row to fulfill the criterion
-# Besides the T&E Asia and C Europe, the criterion always decide for the same lags
-# There, the SBC (because simpler) is chosen!
-
-IC_min <- as.matrix(apply(IC,1,which.min))
-IC_SBC <- as.data.frame(IC_min[c(2,5,8,11,14,17,20,23,26,29,32,35)])
-
-# Subtract 1 since the first column does not include a lagged difference etc.
-IC_SBC <- IC_SBC -1
-
-
-
-
-## Adjusted format with the inclusion of external parameters
 lags_criterion_adj <- function(Data_orig, lags, div, region){
   
   # Help parameters
   z <- 1+lags
   y <- 2+lags
-  Ext_Par <- Ext_Parameters_Chg[y:36,]
+  Ext_Par <- Ext_Parameters_Chg[y:nrow(Data_orig),]
+  last_lag <- nrow(Data_orig)-1
   
   if(region == "Americans"){
       reg_aid <- 0
@@ -1007,33 +854,34 @@ lags_criterion_adj <- function(Data_orig, lags, div, region){
   
   # Different setups for matrices with or without lags
   if (lags == 0){
-    X <- as.data.frame(matrix(1,35,3))
+    X <- as.data.frame(matrix(1,last_lag,3))
     # linear trend
-    X[,2] <- 1:nrow(X)
+    # X[,2] <- 1:nrow(X)
     
     # quadratic trend
-    #X[,2] <- (1:nrow(X))^2
-    X[,3] <- Data_orig[1:35,1]
+    X[,2] <- (1:nrow(X))^2
+    
+    X[,3] <- Data_orig[1:last_lag,1]
     X <- as.matrix(X)
   } else {
     # Function to lag the time series
-    Data <- setDT(Data_orig)[, paste0('lagged', 1:35):= shift(Region,1:35)][]
+    Data <- setDT(Data_orig)[, paste0('lagged', 1:last_lag):= shift(Region,1:last_lag)][]
     Data <- Data[lags+2:nrow(Data),]
     
-    X <- data.frame(matrix(ncol=3, nrow=35-lags))
+    X <- data.frame(matrix(ncol=3, nrow=last_lag-lags))
     naming <- c("Constant", "Trend", "Lastval")
     colnames(X) <- naming
     
     # set up the X matrix for the OLS estimation
     X$Constant <- 1
     # linear trend
-    X[,2] <- 1:nrow(X)
+    # X[,2] <- 1:nrow(X)
     
     # quadratic trend
-    # X$Trend <- (1:nrow(X))^2
-    X$Lastval <- Data_orig[c(z:35),1]
+    X$Trend <- (1:nrow(X))^2
+    X$Lastval <- Data_orig[c(z:last_lag),1]
     
-    Data_lagged <- matrix(0, 35-lags, lags) %>% as.data.frame()
+    Data_lagged <- matrix(0, last_lag-lags, lags) %>% as.data.frame()
     Data_lagged <- Data[,2:z]-Data[,3:y]
     Data_lagged <- Data_lagged[1:nrow(X),]
     
@@ -1068,21 +916,19 @@ lags_criterion_adj <- function(Data_orig, lags, div, region){
   rho_hat_std_error <- std_error_OLS[3,3]
   t_stat <- (rho_hat-1)/rho_hat_std_error
   
-  # Compute both criterion
+  # Compute both criteria
   SBC <- log(s_squared)+nrow(First_Part)/ncol(X_trans)*log(ncol(X_trans))
   AIC <- log(s_squared)+2*nrow(First_Part)/ncol(X_trans)
   
-  # Different outputs dependent on the stage of the estimation
   Output_matrix <- rbind(t_stat, rho_hat,SBC,AIC)
   
   return(Output_matrix)
   }
 
 
-# Collect the different criterion
+# Collect the different values and criteria
 IC <- data.frame(matrix(ncol=16, nrow=48))
 
-# Loop over up to 13 lagged differences
 for (i in 0:15){
   IC[1:4,i+1] <- lags_criterion_adj(Interpol_SIAmer[,3], i, "S&I","Americans")
   IC[5:8,i+1] <- lags_criterion_adj(Interpol_SIAsia[,3], i, "S&I", "Asia Pacific")
@@ -1118,16 +964,15 @@ for (i in 1:12){
 }
 
 
-# Find the well-suited in one market
-# Changing coefficient is the constant and the second external factor
+## Coefficient estimation with changing coefficients for the constant and 
+## the second external factor
 
 coeff_estimate <- function(SI, TE, HC, C, lagged_vals, region, SBC){
   
-  # Help parameters
   z <- lagged_vals
   y <- 1+lagged_vals
   length_TS <- nrow(SI)
-  end_ts <- 36 - lagged_vals
+  end_ts <- length_TS - lagged_vals
   
   Ext_Par <- Ext_Parameters_Chg[y:length_TS,]
   
@@ -1141,111 +986,99 @@ coeff_estimate <- function(SI, TE, HC, C, lagged_vals, region, SBC){
   
   # Different setups for matrices with or without lags
   if (lagged_vals == 0){
-    X <- as.data.frame(matrix(1,length_TS*4,2))
+    X <- matrix(1,length_TS*4,5) %>% as.data.frame()
+    
+    # Plug in the auxiliary variables for the different constants
+    X[1:end_ts,2] <- 0
+    X[(end_ts*2+1):nrow(X),2]<- 0
+    
+    X[1:(end_ts*2),3] <- 0
+    X[(end_ts*3+1):nrow(X),3]<- 0
+     
+    X[1:(end_ts*3),4] <- 0 
+      
     # linear trend
-    # X[,2] <- 1:length_TS
+    X[,5] <- 1:length_TS
     
     # quadratic trend
-    X[,2] <- (1:length_TS)^2
+    # X[,5] <- (1:length_TS)^2
     X <- as.matrix(X)
     
     y_exp <- rbind(SI, TE, HC, C)
     
   } else {
     # Function to lag the four time series
-    Data1 <- setDT(SI)[, paste0('lagged', 1:35):= shift(Region,1:35)][]
+    Data1 <- setDT(SI)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
     Data1 <- Data1[lagged_vals+1:nrow(Data1),] %>% as.data.frame()
     
-    Data2 <- setDT(TE)[, paste0('lagged', 1:35):= shift(Region,1:35)][]
+    Data2 <- setDT(TE)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
     Data2 <- Data2[lagged_vals+1:nrow(Data2),] %>% as.data.frame()
     
-    Data3 <- setDT(HC)[, paste0('lagged', 1:35):= shift(Region,1:35)][]
+    Data3 <- setDT(HC)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
     Data3 <- Data3[lagged_vals+1:nrow(Data3),] %>% as.data.frame()
     
-    Data4 <- setDT(C)[, paste0('lagged', 1:35):= shift(Region,1:35)][]
+    Data4 <- setDT(C)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
     Data4 <- Data4[lagged_vals+1:nrow(Data4),] %>% as.data.frame()
     
     # Y-vector for OLS
-    y_exp <- cbind(t(Data1[1:(36-z),1]), t(Data2[1:(36-z),1]), t(Data3[1:(36-z),1]), 
-                   t(Data4[1:(36-z),1])) %>% t()
-
-    end_ts <- 36 - lagged_vals
-    X <- data.frame(matrix(ncol=2+lagged_vals, nrow=end_ts*4))
-    naming <- c("Constant", "Trend")
+    y_exp <- cbind(t(Data1[1:(length_TS-z),1]), t(Data2[1:(length_TS-z),1]), t(Data3[1:(length_TS-z),1]), 
+                   t(Data4[1:(length_TS-z),1])) %>% t()
+    
+    X <- as.data.frame(matrix(1,end_ts*4,5+lagged_vals))
+    naming <- c("Constant1", "Aux_Constant2", "Aux_Constant3", "Aux_Constant4", "Trend")
     colnames(X) <- naming
     
-    # set up the X matrix for the OLS estimation
-    X$Constant <- 1
+    # Plug in the auxiliary variables for the different constants
+    X[1:end_ts,2] <- 0
+    X[(end_ts*2+1):nrow(X),2]<- 0
+    
+    X[1:(end_ts*2),3] <- 0
+    X[(end_ts*3+1):nrow(X),3]<- 0
+    
+    X[1:(end_ts*3),4] <- 0 
     # linear trend
-    # X[,2] <- 1:nrow(X)
+    X[,5] <- 1:nrow(X)
     
     # quadratic trend
-    X$Trend <- (1:end_ts)^2
+    # X[,5] <- (1:end_ts)^2
     
     for (i in 1:lagged_vals){
-      X[1:end_ts,2+i] <- Data1[1:end_ts,1+i]
-      X[(end_ts+1):(2*end_ts),2+i] <- Data2[1:end_ts,1+i]
-      X[(2*end_ts+1):(3*end_ts),2+i] <- Data3[1:end_ts,1+i]
-      X[(3*end_ts+1):(4*end_ts),2+i] <- Data4[1:end_ts,1+i]
+      X[1:end_ts,5+i] <- Data1[1:end_ts,1+i]
+      X[(end_ts+1):(2*end_ts),5+i] <- Data2[1:end_ts,1+i]
+      X[(2*end_ts+1):(3*end_ts),5+i] <- Data3[1:end_ts,1+i]
+      X[(3*end_ts+1):(4*end_ts),5+i] <- Data4[1:end_ts,1+i]
     }
   }
-
+  
   # Include GDP for every time series
   X <- cbind(X, Ext_Par[,2+reg_aid])
   
   # Row-bind the other external parameters for the time series
-  Temp <- mapply(c, Ext_Par[,5+reg_aid], Ext_Par[,14+reg_aid], 
-                Ext_Par[,20+reg_aid], Ext_Par[,23+reg_aid]) %>% as.data.frame()
-  names(Temp)[1] <- "Add_External"
-  X <- cbind(X, Temp)
-
+  Ext_Matrix <- data.frame(matrix(0,ncol=4, nrow=end_ts*4))
+  Ext_Matrix[1:end_ts,1] <- Ext_Par[,5+reg_aid]
+  Ext_Matrix[(end_ts+1):(end_ts*2),2]<- Ext_Par[,14+reg_aid]
+  Ext_Matrix[(end_ts*2+1):(end_ts*3),3] <- Ext_Par[,20+reg_aid]
+  Ext_Matrix[(end_ts*3+1):nrow(Ext_Matrix),4] <- Ext_Par[,23+reg_aid]
+    
+  X <- cbind(X, Ext_Matrix)
+  
   
   # OLS coefficients
-  coefficients_OLS <- data.frame(matrix(ncol=4, nrow=4+lagged_vals))
+  coefficients_OLS <- data.frame(matrix(ncol=1, nrow=10+lagged_vals))
   
   # Collect the residuals for the SBC
   residuals <- data.frame(matrix(ncol=1, nrow=end_ts*4))
   
-  for (i in 1:4){
-    Temp <- X
-    # Division-specific constants and 2nd external effect
-    if(i==1){
-      Temp[(end_ts+1):nrow(Temp),c(1,ncol(Temp))] <- 0
-    } else if (i ==2){
-      Temp[1:end_ts,c(1,ncol(Temp))] <- 0
-      Temp[(end_ts*2+1):nrow(Temp),c(1,ncol(Temp))] <- 0
-    } else if (i == 3){
-      Temp[1:(end_ts*2),c(1,ncol(Temp))] <- 0
-      Temp[(end_ts*3+1):nrow(Temp),c(1,ncol(Temp))] <- 0
-    } else if (i == 4){
-      Temp[1:(end_ts*3),c(1,ncol(Temp))] <- 0
-    }
+  X_trans <- t(X) %>% as.matrix()
+  First_Part <- as.matrix(inv(X_trans%*%as.matrix(X)))
+  Second_Part <- as.matrix(X_trans%*%as.matrix(y_exp))
+  coefficients_OLS  <- First_Part %*% Second_Part
     
-    X_trans <- t(Temp) %>% as.matrix()
-    First_Part <- as.matrix(inv(X_trans%*%as.matrix(Temp)))
-    Second_Part <- as.matrix(X_trans%*%as.matrix(y_exp))
-    coefficients_OLS[,i]  <- First_Part %*% Second_Part
-    
-    
-    if(i==1){
-      residuals[1:end_ts,] <- 
-            y_exp[1:end_ts,] - as.matrix(X[1:end_ts,])%*%coefficients_OLS[,1]
-    } else if (i ==2){
-      residuals[(end_ts+1):(end_ts*2),] <- 
-        y_exp[(end_ts+1):(end_ts*2),] - as.matrix(X[(end_ts+1):(end_ts*2),])%*%coefficients_OLS[,2]
-    } else if (i == 3){
-      residuals[(end_ts*2+1):(end_ts*3),] <- 
-        y_exp[(end_ts*2+1):(end_ts*3),] - as.matrix(X[(end_ts*2+1):(end_ts*3),])%*%coefficients_OLS[,3]
-    } else if (i == 4){
-      residuals[(end_ts*3+1):nrow(y_exp),] <- 
-        y_exp[(end_ts*3+1):nrow(y_exp),] - as.matrix(X[(end_ts*3+1):nrow(y_exp),])%*%coefficients_OLS[,4]
-    }
-
-  }
+  residuals <- y_exp - as.matrix(X)%*%coefficients_OLS
   
   # SBC for the optimal model specification
   SBC_est <- 
-    log((sd(residuals[,1]))^2)+(nrow(coefficients_OLS)*ncol(coefficients_OLS))*log(end_ts)*(1/end_ts)
+    log((sd(residuals[,1]))^2)+lagged_vals*log(end_ts)*(1/end_ts)
   
   
   if (SBC == FALSE){
@@ -1257,12 +1090,13 @@ coeff_estimate <- function(SI, TE, HC, C, lagged_vals, region, SBC){
 
 
 ## Estimate the AR-model specification for the different regions
-SBC <- data.frame(matrix(ncol=3, nrow=21))
+
+SBC <- data.frame(matrix(ncol=3, nrow=19))
 names(SBC)[1] <- "Americans"
 names(SBC)[2] <- "European"
 names(SBC)[3] <- "Asia Pacific"
 
-for (i in 0:20){
+for (i in 0:18){
   SBC[i+1,1] <- coeff_estimate(Interpol_SIAmer[,3], Interpol_TEAmer[,3], 
                  Interpol_HCAmer[,3], Interpol_CAmer[,3], i, "Americans", TRUE)
   SBC[i+1,2] <- coeff_estimate(Interpol_SIEur[,3], Interpol_TEEur[,3], 
@@ -1272,17 +1106,15 @@ for (i in 0:20){
 }
 
 
-## Collect the coefficients of the AR(1)-models
-pred_coeffs <- data.frame(matrix(ncol=4, nrow=5*3))
+## Collect the coefficients of the AR-models
+pred_coeffs <- data.frame(matrix(ncol=3, nrow=11))
 
-
-pred_coeffs[1:5,] <- coeff_estimate(Interpol_SIAmer[,3], Interpol_TEAmer[,3], 
-                Interpol_HCAmer[,3], Interpol_CAmer[,3], 1, "Americans", FALSE)
-pred_coeffs[6:10,] <- coeff_estimate(Interpol_SIEur[,3], Interpol_TEEur[,3], 
-                Interpol_HCEur[,3], Interpol_CEur[,3], 1, "European", FALSE)
-pred_coeffs[11:15,] <- coeff_estimate(Interpol_SIAsia[,3], Interpol_TEAsia[,3], 
+pred_coeffs[1:10,1] <- coeff_estimate(Interpol_SIAmer[,3], Interpol_TEAmer[,3], 
+                Interpol_HCAmer[,3], Interpol_CAmer[,3], 0, "Americans", FALSE)
+pred_coeffs[1:10,2] <- coeff_estimate(Interpol_SIEur[,3], Interpol_TEEur[,3], 
+                Interpol_HCEur[,3], Interpol_CEur[,3], 0, "European", FALSE)
+pred_coeffs[1:11,3] <- coeff_estimate(Interpol_SIAsia[,3], Interpol_TEAsia[,3], 
                 Interpol_HCAsia[,3], Interpol_CAsia[,3], 1, "Asia Pacific", FALSE)
-
 
 
 
@@ -1307,14 +1139,56 @@ names(Sales_Hist)[10] <- "C Americans"
 names(Sales_Hist)[11] <- "C Asia Pacific"
 names(Sales_Hist)[12] <- "C European"
 
+
 ## Set-up of function to predict the sales
-Sales_Pred <- function(Coeff, Prev_val, Externals){
+
+Sales_Pred <- function(Coeff, Prev_val, Externals, Lags, Pred_div){
   
-    pred <- 
-      as.numeric(Coeff[1]+Coeff[2]+Coeff[3]*Prev_val)+Coeff[4]*Externals[1,1]+Coeff[5]*Externals[1,2]
-    
-    return(pred)
+    if(Pred_div =="SI"){
+      if(Lags == 0){
+      SI_pred <- 
+        as.numeric(Coeff[1]+Coeff[5]+Coeff[6]*Externals[1,1]+Coeff[7]*Externals[1,2])
+      } else if (Lags == 1){
+      SI_pred <- 
+        as.numeric(Coeff[1]+Coeff[5]+Coeff[6]*Prev_val+Coeff[7]*Externals[1,1]+Coeff[8]*Externals[1,2])
+      }
+      
+      return(SI_pred)
+      
+    } else if (Pred_div == "TE"){
+      if (Lags==0){
+      TE_pred <- 
+        as.numeric(Coeff[1]+Coeff[2]+Coeff[5]+Coeff[6]*Externals[1,1]+Coeff[8]*Externals[1,2])
+      } else if (Lags == 1){
+      TE_pred <- 
+        as.numeric(Coeff[1]+Coeff[2]+Coeff[5]+Coeff[6]*Prev_val+Coeff[7]*Externals[1,1]+Coeff[9]*Externals[1,2])
+      }
+      
+      return(TE_pred)
+      
+    } else if (Pred_div == "HC"){
+      if (Lags ==0){
+        HC_pred <- 
+          as.numeric(Coeff[1]+Coeff[3]+Coeff[5]+Coeff[6]*Externals[1,1]+Coeff[9]*Externals[1,2])
+      } else if (Lags ==1){
+        HC_pred <- 
+          as.numeric(Coeff[1]+Coeff[3]+Coeff[5]+Coeff[6]*Prev_val+Coeff[7]*Externals[1,1]+Coeff[10]*Externals[1,2])
+      }
+      
+      return(HC_pred)
+      
+    } else if (Pred_div == "C"){
+      if (Lags ==0){
+       C_pred <- 
+          as.numeric(Coeff[1]+Coeff[4]+Coeff[5]+Coeff[6]*Externals[1,1]+Coeff[10]*Externals[1,2])
+      } else if (Lags ==1){
+      C_pred <- 
+        as.numeric(Coeff[1]+Coeff[4]+Coeff[5]+Coeff[6]*Prev_val+Coeff[7]*Externals[1,1]+Coeff[11]*Externals[1,2])
+      }
+      return(C_pred)
+    }
 }
+
 
 ## Predict the sales for the next quarters
 
@@ -1334,40 +1208,41 @@ for (i in 1:4){
   
   # Predict the sales for each time series
   Temp[,1] <- 
-        Sales_Pred(pred_coeffs[1:5,1], Sales_Hist[nrow(Sales_Hist),1], y[,c(2,5)])
+    Sales_Pred(pred_coeffs[1:10,1], Sales_Hist[nrow(Sales_Hist),1], y[,c(2,5)],0,"SI")
   
   Temp[,2] <- 
-        Sales_Pred(pred_coeffs[1:5,2], Sales_Hist[nrow(Sales_Hist),4],y[,c(2,14)])
+    Sales_Pred(pred_coeffs[1:11,3], Sales_Hist[nrow(Sales_Hist),2],y[,c(4,7)],1,"SI")
 
   Temp[,3] <- 
-        Sales_Pred(pred_coeffs[1:5,3], Sales_Hist[nrow(Sales_Hist),7],y[,c(2,20)])
+    Sales_Pred(pred_coeffs[1:10,2], Sales_Hist[nrow(Sales_Hist),3],y[,c(3,6)],0,"SI")
   
   Temp[,4] <- 
-        Sales_Pred(pred_coeffs[1:5,4], Sales_Hist[nrow(Sales_Hist),10],y[,c(2,23)])
+    Sales_Pred(pred_coeffs[1:10,1], Sales_Hist[nrow(Sales_Hist),4],y[,c(2,14)],0,"TE")
   
   Temp[,5] <- 
-      Sales_Pred(pred_coeffs[6:10,1], Sales_Hist[nrow(Sales_Hist),3], y[,c(3,6)])
+    Sales_Pred(pred_coeffs[1:11,3], Sales_Hist[nrow(Sales_Hist),5], y[,c(4,16)],1,"TE")
   
   Temp[,6] <- 
-        Sales_Pred(pred_coeffs[6:10,2], Sales_Hist[nrow(Sales_Hist),6],y[,c(3,15)])
+    Sales_Pred(pred_coeffs[1:10,2], Sales_Hist[nrow(Sales_Hist),6],y[,c(3,15)],0,"TE")
   
   Temp[,7] <- 
-        Sales_Pred(pred_coeffs[6:10,3], Sales_Hist[nrow(Sales_Hist),9],y[,c(3,21)])
+    Sales_Pred(pred_coeffs[1:10,1], Sales_Hist[nrow(Sales_Hist),7],y[,c(2,20)],0,"HC")
   
   Temp[,8] <- 
-        Sales_Pred(pred_coeffs[6:10,4], Sales_Hist[nrow(Sales_Hist),12],y[,c(3,24)])
+    Sales_Pred(pred_coeffs[1:11,3], Sales_Hist[nrow(Sales_Hist),8],y[,c(4,22)],1,"HC")
   
   Temp[,9] <- 
-      Sales_Pred(pred_coeffs[11:15,1], Sales_Hist[nrow(Sales_Hist),2], y[,c(4,7)])
+    Sales_Pred(pred_coeffs[1:10,2], Sales_Hist[nrow(Sales_Hist),9], y[,c(3,21)],0,"HC")
   
   Temp[,10] <- 
-        Sales_Pred(pred_coeffs[11:15,2], Sales_Hist[nrow(Sales_Hist),5],y[,c(4,16)])
+    Sales_Pred(pred_coeffs[1:10,1], Sales_Hist[nrow(Sales_Hist),10],y[,c(2,23)],0,"C")
   
   Temp[,11] <- 
-        Sales_Pred(pred_coeffs[11:15,3], Sales_Hist[nrow(Sales_Hist),8],y[,c(4,22)])
+    Sales_Pred(pred_coeffs[1:11,3], Sales_Hist[nrow(Sales_Hist),11],y[,c(4,25)],1,"C")
   
   Temp[,12] <-
-        Sales_Pred(pred_coeffs[11:15,4], Sales_Hist[nrow(Sales_Hist),11],y[,c(4,25)])
+    Sales_Pred(pred_coeffs[1:10,2], Sales_Hist[nrow(Sales_Hist),12],y[,c(3,24)],0,"C")
+  
   
   # Add the projected sales in order to estimate the next quarter
   Sales_Hist <- rbind(Sales_Hist, Temp)
