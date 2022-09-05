@@ -998,10 +998,10 @@ coeff_estimate <- function(SI, TE, HC, C, lagged_vals, region, SBC){
     X[1:(end_ts*3),4] <- 0 
       
     # linear trend
-    X[,5] <- 1:length_TS
+    # X[,5] <- 1:length_TS
     
     # quadratic trend
-    # X[,5] <- (1:length_TS)^2
+    X[,5] <- (1:length_TS)^2
     X <- as.matrix(X)
     
     y_exp <- rbind(SI, TE, HC, C)
@@ -1037,10 +1037,10 @@ coeff_estimate <- function(SI, TE, HC, C, lagged_vals, region, SBC){
     
     X[1:(end_ts*3),4] <- 0 
     # linear trend
-    X[,5] <- 1:nrow(X)
+    # X[,5] <- 1:nrow(X)
     
     # quadratic trend
-    # X[,5] <- (1:end_ts)^2
+    X[,5] <- (1:end_ts)^2
     
     for (i in 1:lagged_vals){
       X[1:end_ts,5+i] <- Data1[1:end_ts,1+i]
@@ -1247,4 +1247,338 @@ for (i in 1:4){
   # Add the projected sales in order to estimate the next quarter
   Sales_Hist <- rbind(Sales_Hist, Temp)
 }
+
+
+
+################################################################################
+###                       Final Rolling Forecast Function                    ###
+################################################################################
+
+
+### Assumptions about the future development of external parameters
+
+Exp_Ext_Parameter <-
+  data.frame(Q3_22 = c(0.003, 0.006, 0.002, -0.0015, 0.001, -0.006, 0.015, 0.012, 
+                       0.028, 0.011, 0.007, 0.002, -0.005, -0.001, -0.009),
+             Q4_22 = c(0.005, 0.009, 0.003, -0.001, -0.003, 0.001, 0.013, 0.011,
+                       0.023, 0.010, 0.004, 0.0115, -0.002, 0, -0.0065),
+             Q1_23 = c(0.003, 0.007, 0.003, -0.0007, 0, 0.001, 0.011, 0.007,
+                       0.015, 0.008, 0, 0.0135, 0.001, 0.0015, -0.004),
+             Q2_23 = c(0.004, 0.009, 0.004, -0.0005, -0.003, -0.001, 0.009,
+                       0.004, 0.012, 0.006, 0, -0.002, 0.003, 0.003, -0.0025))
+
+
+### Interpolated Sales History
+
+Sales_History_Q2 <- 
+  cbind(Interpol_SIAmer[,3], Interpol_TEAmer[,3], Interpol_HCAmer[,3], Interpol_CAmer[,3],
+        Interpol_SIEur[,3], Interpol_TEEur[,3], Interpol_HCEur[,3], Interpol_CEur[,3],
+        Interpol_SIAsia[,3], Interpol_TEAsia[,3], Interpol_HCAsia[,3], Interpol_CAsia[,3])
+
+
+## Row-bind the interpolated series of Q1 and Q2 2022
+
+Data22 <- data.frame(c(1515,1452), c(761,737), c(1221,1252), c(919,931),
+                     c(690, 661), c(372,360), c(495,508), c(143,145),
+                     c(847,812), c(1208,1171), c(408,419), c(251,254))
+
+names(Data22) <- names(Sales_History_Q2)
+Sales_History_Q2 <- rbind(Sales_History_Q2, Data22)
+names(Sales_History_Q2)[1:12] <- "Region"
+
+### Rolling Forecast Function
+
+rolling_forecast <- function(Sales_History, region, External_Expectations){
+  
+  length_TS <- nrow(Sales_History)
+  
+  if(region == "Americans"){
+    reg_aid <- 0
+    reg_ext <- 0
+    reg_forecast <- 0
+    SI <- Sales_History[,1] %>% as.data.frame()
+    TE <- Sales_History[,2] %>% as.data.frame()
+    HC <- Sales_History[,3] %>% as.data.frame()
+    C <- Sales_History[,4] %>% as.data.frame()
+    names(SI) <- "Region"
+  } else if (region == "European"){
+    reg_aid <- 1
+    reg_ext <- 2
+    reg_forecast <- 4
+    SI <- Sales_History[,5] %>% as.data.frame()
+    TE <- Sales_History[,6] %>% as.data.frame()
+    HC <- Sales_History[,7] %>% as.data.frame()
+    C <- Sales_History[,8] %>% as.data.frame()
+  } else if (region == "Asia Pacific"){
+    reg_aid <- 2
+    reg_ext <- 1
+    reg_forecast <- 8
+    SI <- Sales_History[,9] %>% as.data.frame()
+    TE <- Sales_History[,10] %>% as.data.frame()
+    HC <- Sales_History[,11] %>% as.data.frame()
+    C <- Sales_History[,12] %>% as.data.frame()
+  }
+  
+  names(SI) <- "Region"
+  names(TE) <- "Region"
+  names(HC) <- "Region"
+  names(C) <- "Region"
+  
+  for (i in 0:10){
+    
+  z <- i
+  y <- i+1
+  end_ts <- length_TS - i
+    
+  Ext_Par <- Ext_Parameters_Chg[y:length_TS,]  
+  
+  # Different setups for matrices with or without lags
+  if (i == 0){
+    X <- matrix(1,length_TS*4,5) %>% as.data.frame()
+    
+    # Plug in the auxiliary variables for the different constants
+    X[1:end_ts,2] <- 0
+    X[(end_ts*2+1):nrow(X),2]<- 0
+    
+    X[1:(end_ts*2),3] <- 0
+    X[(end_ts*3+1):nrow(X),3]<- 0
+    
+    X[1:(end_ts*3),4] <- 0 
+    
+    # quadratic trend
+    X[,5] <- (1:length_TS)^2
+    X <- as.matrix(X)
+    
+    # Y-vector for OLS
+    if(region == "Americans"){
+          y_exp <- c(Sales_History[,1], Sales_History[,2], Sales_History[,3], Sales_History[,4])
+    } else if (region == "European"){
+          y_exp <- c(Sales_History[,5], Sales_History[,6], Sales_History[,7], Sales_History[,8])
+    } else if (region == "Asia Pacific"){
+          y_exp <- c(Sales_History[,9], Sales_History[,10], Sales_History[,11], Sales_History[,12])
+    }
+    
+  } else {
+    # Function to lag the four time series
+    Data1 <- setDT(SI)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
+    Data1 <- Data1[(i+1):nrow(Data1),] %>% as.data.frame()
+    
+    Data2 <- setDT(TE)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
+    Data2 <- Data2[(i+1):nrow(Data2),] %>% as.data.frame()
+    
+    Data3 <- setDT(HC)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
+    Data3 <- Data3[(i+1):nrow(Data3),] %>% as.data.frame()
+    
+    Data4 <- setDT(C)[, paste0('lagged', 1:end_ts):= shift(Region,1:end_ts)][]
+    Data4 <- Data4[(i+1):nrow(Data4),] %>% as.data.frame()
+    
+    # Y-vector for OLS
+    y_exp <- cbind(t(Data1[1:(length_TS-z),1]), t(Data2[1:(length_TS-z),1]), t(Data3[1:(length_TS-z),1]), 
+                   t(Data4[1:(length_TS-z),1])) %>% t()
+    
+    X <- as.data.frame(matrix(1,end_ts*4,5+i))
+    naming <- c("Constant1", "Aux_Constant2", "Aux_Constant3", "Aux_Constant4", "Trend")
+    colnames(X) <- naming
+    
+    # Plug in the auxiliary variables for the different constants
+    X[1:end_ts,2] <- 0
+    X[(end_ts*2+1):nrow(X),2]<- 0
+    
+    X[1:(end_ts*2),3] <- 0
+    X[(end_ts*3+1):nrow(X),3]<- 0
+    
+    X[1:(end_ts*3),4] <- 0 
+
+    # quadratic trend
+    X[,5] <- (1:end_ts)^2
+    
+    for (j in 1:i){
+      X[1:end_ts,5+j] <- Data1[1:end_ts,1+j]
+      X[(end_ts+1):(2*end_ts),5+j] <- Data2[1:end_ts,1+j]
+      X[(2*end_ts+1):(3*end_ts),5+j] <- Data3[1:end_ts,1+j]
+      X[(3*end_ts+1):(4*end_ts),5+j] <- Data4[1:end_ts,1+j]
+    }
+  }
+  
+  # Include GDP for every time series
+  X <- cbind(X, Ext_Par[,2+reg_aid])
+  
+  # Row-bind the other external parameters for the time series
+  Ext_Matrix <- data.frame(matrix(0,ncol=4, nrow=end_ts*4))
+  Ext_Matrix[1:end_ts,1] <- Ext_Par[,5+reg_aid]
+  Ext_Matrix[(end_ts+1):(end_ts*2),2]<- Ext_Par[,14+reg_aid]
+  Ext_Matrix[(end_ts*2+1):(end_ts*3),3] <- Ext_Par[,20+reg_aid]
+  Ext_Matrix[(end_ts*3+1):nrow(Ext_Matrix),4] <- Ext_Par[,23+reg_aid]
+  
+  X <- cbind(X, Ext_Matrix)
+  
+  
+  # OLS coefficients
+  coefficients_OLS <- data.frame(matrix(ncol=1, nrow=10+i))
+  
+  # Collect the residuals for the SBC
+  residuals <- data.frame(matrix(ncol=1, nrow=end_ts*4))
+  
+  X_trans <- t(X) %>% as.matrix()
+  First_Part <- as.matrix(inv(X_trans%*%as.matrix(X)))
+  Second_Part <- as.matrix(X_trans%*%as.matrix(y_exp))
+  coefficients_OLS  <- First_Part %*% Second_Part
+  
+  residuals <- y_exp - as.matrix(X)%*%coefficients_OLS
+  
+  # SBC for the optimal model specification
+  SBC_est <- 
+    log((sd(residuals[,1]))^2)+i*log(end_ts)*(1/end_ts)
+  
+  if(i==0){
+    SBC_min <- SBC_est
+    lags <- 0
+    OLS_solution <- data.frame(matrix(ncol=1, nrow=20))
+    OLS_solution[1:10,] <- coefficients_OLS
+  }
+  
+  if(SBC_est < SBC_min){
+    SBC_min <- SBC_est
+    lags <- i
+    OLS_solution[1:(10+i),] <- coefficients_OLS
+  }
+  
+  }
+  
+  # Collect the forecasts
+  Temp <- data.frame(matrix(0, ncol=12, nrow=1))
+  names(Temp) <- names(Sales_History)
+  
+  Forecast_estimate <- data.frame(matrix(nrow = 1, ncol=4))
+  
+  for(k in 1:4){
+  
+  if(lags == 0){
+    Forecast_estimate[,1] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[7,1]*External_Expectations[(4+reg_ext),k])
+    Forecast_estimate[,2] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[2,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[8,1]*External_Expectations[(7+reg_ext),k])
+    Forecast_estimate[,3] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[3,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[9,1]*External_Expectations[(10+reg_ext),k])
+    Forecast_estimate[,4] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[4,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[10,1]*External_Expectations[(13+reg_ext),k])
+  } else if (lags == 1){
+    Forecast_estimate[,1] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(1+reg_forecast)]+
+                   OLS_solution[7,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[8,1]*External_Expectations[(4+reg_ext),k])
+    Forecast_estimate[,2] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[2,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(2+reg_forecast)]+
+                   OLS_solution[7,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[9,1]*External_Expectations[(7+reg_ext),k])
+    Forecast_estimate[,3] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[3,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(3+reg_forecast)]+
+                   OLS_solution[7,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[10,1]*External_Expectations[(10+reg_ext),k])
+    Forecast_estimate[,4] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[4,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(4+reg_forecast)]+
+                   OLS_solution[7,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[11,1]*External_Expectations[(13+reg_ext),k])
+  } else if (lags == 2){
+    Forecast_estimate[,1] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(1+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(1+reg_forecast)]+
+                   OLS_solution[8,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[9,1]*External_Expectations[(4+reg_ext),k])
+    Forecast_estimate[,2] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[2,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(2+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(2+reg_forecast)]+
+                   OLS_solution[8,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[10,1]*External_Expectations[(7+reg_ext),k])
+    Forecast_estimate[,3] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[3,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(3+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(3+reg_forecast)]+
+                   OLS_solution[8,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[11,1]*External_Expectations[(10+reg_ext),k])
+    Forecast_estimate[,4] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[4,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(4+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(4+reg_forecast)]+
+                   OLS_solution[8,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[12,1]*External_Expectations[(13+reg_ext),k])
+  } else if (lags == 3){
+    Forecast_estimate[,1] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(1+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(1+reg_forecast)]+
+                   OLS_solution[8,1]*Sales_History[(nrow(Sales_History)-2),(1+reg_forecast)]+
+                   OLS_solution[9,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[10,1]*External_Expectations[(4+reg_ext),k])
+    Forecast_estimate[,2] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[2,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(2+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(2+reg_forecast)]+
+                   OLS_solution[8,1]*Sales_History[(nrow(Sales_History)-2),(2+reg_forecast)]+
+                   OLS_solution[9,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[11,1]*External_Expectations[(7+reg_ext),k])
+    Forecast_estimate[,3] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[3,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(3+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(3+reg_forecast)]+
+                   OLS_solution[8,1]*Sales_History[(nrow(Sales_History)-2),(3+reg_forecast)]+
+                   OLS_solution[9,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[12,1]*External_Expectations[(10+reg_ext),k])
+    Forecast_estimate[,4] <- 
+      as.numeric(OLS_solution[1,1]+OLS_solution[4,1]+OLS_solution[5,1]+
+                   OLS_solution[6,1]*Sales_History[nrow(Sales_History),(4+reg_forecast)]+
+                   OLS_solution[7,1]*Sales_History[(nrow(Sales_History)-1),(4+reg_forecast)]+
+                   OLS_solution[8,1]*Sales_History[(nrow(Sales_History)-2),(4+reg_forecast)]+
+                   OLS_solution[9,1]*External_Expectations[(1+reg_ext),k]+
+                   OLS_solution[13,1]*External_Expectations[(13+reg_ext),k])
+  }
+    if(region == "Americans"){
+      Temp[,1:4] <- Forecast_estimate
+    } else if (region == "European"){
+      Temp[,5:8] <- Forecast_estimate
+    } else if (region == "Asia Pacific"){
+      Temp[,9:12] <- Forecast_estimate
+    }
+    
+    Sales_History <- rbind(Sales_History,Temp)
+    
+  }
+  
+  if(region == "Americans"){
+        return(Sales_History[39:42,1:4])
+  } else if (region == "European"){
+        return(Sales_History[39:42,5:8])
+  } else if (region == "Asia Pacific"){
+        return(Sales_History[39:42,9:12])
+  }
+}
+
+### Forecasts Q3 '22 to Q2 '23
+
+Rolling_Sales_Forecast <- data.frame(matrix(ncol=4, nrow=4))
+
+Rolling_Sales_Forecast[,1:4] <- 
+  rolling_forecast(Sales_History_Q2, "Americans", External_Expectations)
+Rolling_Sales_Forecast[,5:8] <- 
+  rolling_forecast(Sales_History_Q2, "European", External_Expectations)
+Rolling_Sales_Forecast[,9:12] <- 
+  rolling_forecast(Sales_History_Q2, "Asia Pacific", External_Expectations)
+
+
+
+
 
