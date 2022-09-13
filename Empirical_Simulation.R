@@ -43,7 +43,6 @@ Ext_Parameters_Chg <-
 ################################################################################
 
 
-
 ### Plot 1: Net Sales vs. Operating Income vs. Net Income over time
 
 Fig_One <- Income_Statement[c(1,7,15),] %>% t() %>% as.data.frame()
@@ -285,7 +284,7 @@ Cons <- ggplot(DivRegionPlot %>% filter(Division == "Consumer"),
   scale_y_continuous(limits = c(0, 2000)) + ggtitle("Consumer")
 
 
-## Combine the 4 plots with equal sizes of the plot (reason for many figures)
+## Combine the 4 plots with equal sizes (reason for many figures)
 grid.arrange(SafeIndu, TransElec, Health, Cons, ncol=2, nrow = 2,
              layout_matrix = 
                rbind(c(1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
@@ -330,7 +329,6 @@ grid.arrange(SafeIndu, TransElec, Health, Cons, ncol=2, nrow = 2,
 ################################################################################
 ###                   Chapter 5.3: Training of the Algorithm                 ###
 ################################################################################
-
 
 
 ### Training and test sets
@@ -1570,7 +1568,7 @@ rolling_forecast <- function(Sales_History, region, External_Expectations){
   }
 }
 
-### Forecasts Q3 '22 to Q2 '23 (Call of the function)
+### Rolling forecasts Q3 '22 to Q2 '23 (Call of the function)
 
 Rolling_Sales_Forecast <- data.frame(matrix(ncol=4, nrow=4))
 
