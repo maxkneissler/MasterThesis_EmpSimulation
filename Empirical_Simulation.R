@@ -1,7 +1,7 @@
 ################################################################################
 ###               Empirical Simulation in the Master Thesis                  ###
 ### The Quest for a Modern and Dynamic Budgeting and Forecasting Approach    ###
-###               By Max Kneißler (University of Tübingen)                   ###
+###               By Max Knei?ler (University of T?bingen)                   ###
 ################################################################################
 
 
@@ -119,7 +119,6 @@ SalesDiv <- ggplot(DivSalesFig3, aes(x=Quarter, y=as.numeric(Net_Sales),
   scale_y_continuous(limits = c(500, 3500))
 
 
-
 DivOpFig3 <- OpIncome_per_Division[c(1,2,3,4,7),] %>% t() %>% as.data.frame()
 names(DivOpFig3) <- DivOpFig3[1,]
 DivOpFig3 <- DivOpFig3[-1,]
@@ -157,6 +156,7 @@ OpIncDiv <- ggplot(DivOpFig3, aes(x=Quarter, y=as.numeric(Operating_Income),
         legend.margin = margin(0,0,0,0),
         legend.justification = "top") + 
   scale_y_continuous(limits = c(-800, 1200))
+
 
 ## Combine both plots row-wise
 grid.arrange(SalesDiv, OpIncDiv, nrow=5, ncol=1, 
@@ -323,6 +323,7 @@ grid.arrange(SafeIndu, TransElec, Health, Cons, ncol=2, nrow = 2,
                        3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
                        4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,
                        4,4,4,4,4)))
+
 
 
 
@@ -592,7 +593,6 @@ summary(HC_Eur)
 # sink()
 
 
-
 ## Division: Consumer, look at all regions separately 
 ConsRegion_Train <- DivRegion_Train %>% filter(Division == "Consumer")
 ConsRegion_Train <- cbind(ConsRegion_Train, DivRegExt_Paramter[,2:25])
@@ -623,7 +623,6 @@ summary(C_Eur)
 
 
 ### 4. Training Procedure to forecast the sales per division and region 
-
 
 ## Interpolation from 2013 to 2016
 
@@ -715,6 +714,7 @@ Temp <- Temp[,1:2]
 names(Temp)[1] <- "Division"
 names(Temp)[2] <- "Worldwide"
 
+
 # Columns for the regional sales per division
 Temp$Period <- NA
 Temp$Americas <- NA
@@ -780,7 +780,6 @@ DivRegionInterpol <- rbind(Temp, DivRegionInterpol)
 
 
 ## Data frame separation into the interpolated time series
-
 Interpol_SIAmer <- 
   DivRegionInterpol[,1:3] %>% filter(Division == "Safety & Industrial")
 names(Interpol_SIAmer)[3] <- "Region"
@@ -826,7 +825,6 @@ names(Interpol_CEur)[3] <- "Region"
 ### Estimation of the underlying process
 
 ## AIC / SBC to determine the reject the null of a unit root
-
 lags_criterion_adj <- function(Data_orig, lags, div, region){
   
   # Help parameters
@@ -956,10 +954,8 @@ for (i in 1:12){
 }
 
 
-
 ## Coefficient estimation with changing coefficients for the constant and 
 ## the second external factor
-
 coeff_estimate <- function(SI, TE, HC, C, lagged_vals, region, SBC){
   
   z <- lagged_vals
@@ -1110,7 +1106,6 @@ pred_coeffs[1:11,3] <- coeff_estimate(Interpol_SIAsia[,3], Interpol_TEAsia[,3],
                 Interpol_HCAsia[,3], Interpol_CAsia[,3], 1, "Asia Pacific", FALSE)
 
 
-
 ## Predict the upcoming sales of all divisional and regional matrix elements
 Sales_Hist <- 
   cbind(Interpol_SIAmer[,3], Interpol_SIAsia[,3], Interpol_SIEur[,3], 
@@ -1189,7 +1184,6 @@ Sales_Pred <- function(Coeff, Prev_val, Externals, Lags, Pred_div){
 
 
 ## Predict the sales for the next quarters
-
 Temp <- data.frame(matrix(ncol=12, nrow=1))
 names(Temp) <- names(Sales_Hist)
 
